@@ -1,1 +1,1 @@
-{"name":"money-roadmap","version":"0.1.0","scripts":{"start":"node server.js","test":"node tests/engine.test.js"}}
+{"name":"moneymente","version":"0.2.0","description":"AI financial advisor, bilingual, local Nemotron bot, no API key","scripts":{"start":"node server.js","test":"node tests/engine.test.js"},"license":"MIT"}
