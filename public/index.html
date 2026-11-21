@@ -29,10 +29,10 @@
 <article class="card"><h2 data-i18n="y_hist"></h2><small data-i18n="y_hh"></small><div id="hist"></div></article></div>
 <div class="stack"><article class="card"><h2 data-i18n="y_t"></h2><canvas id="yc" width="800" height="340"></canvas><div id="ysum"></div></article>
 <article class="card"><h2 data-i18n="y_hist"></h2><canvas id="hc" width="800" height="300"></canvas></article></div></div></section>
-<section data-view="report"><div class="hd rbar"><h2 data-i18n="r_t"></h2><button class="btn" id="print" data-i18n="r_print"></button></div><article id="report"></article></section>
+<section data-view="report"><div class="hd rbar"><h2 data-i18n="r_t"></h2><div class="acts"><button class="ghost" id="aisum" data-i18n="r_ai"></button><button class="btn" id="print" data-i18n="r_print"></button></div></div><article id="report"></article></section>
 </main>
 <footer data-i18n="disc"></footer>
-<aside id="chat" hidden role="dialog" aria-label="Buck"><div class="ch"><b data-i18n="chat_t"></b><label><input type="checkbox" id="auto"> 🔊</label><button id="close" class="x" aria-label="Close">✕</button></div>
+<aside id="chat" hidden role="dialog" aria-label="Buck"><div class="ch"><b data-i18n="chat_t"></b><span id="ai-st" class="st"></span><label class="ch-opt" id="thk-lbl"><input type="checkbox" id="think"> 🧠</label><label class="ch-opt"><input type="checkbox" id="auto"> 🔊</label><button id="close" class="x" aria-label="Close">✕</button></div>
 <div id="msgs"></div><div id="chips"></div><div class="send"><input id="q" autocomplete="off"><button id="send" class="btn" data-i18n="send"></button></div></aside>
 <div id="bubble" hidden></div>
 <button id="pet" aria-label="Buck"><svg viewBox="0 0 100 110" width="62" height="68"><ellipse cx="50" cy="104" rx="24" ry="4" fill="#000" opacity=".35"/>

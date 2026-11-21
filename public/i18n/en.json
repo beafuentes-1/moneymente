@@ -211,5 +211,14 @@
  "ds2": "Year-end bonus",
  "ds3": "Tuition",
  "dd1": "Credit card",
- "dd2": "Phone loan"
+ "dd2": "Phone loan",
+ "ai_on": "Nemotron · Online",
+ "ai_off": "Offline FAQ",
+ "thk_tip": "Deep Think (show Nemotron reasoning)",
+ "thk_sum": "Buck's reasoning",
+ "act_apply": "✨ Apply to my plan",
+ "act_done": "✓ Applied to your plan",
+ "r_ai": "✨ Add Buck's AI Summary",
+ "r_ai_h": "Buck's AI Executive Summary",
+ "r_ai_wait": "Generating AI summary…"
 }

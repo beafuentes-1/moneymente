@@ -211,5 +211,14 @@
  "ds2": "Bono de fin de año",
  "ds3": "Matrícula",
  "dd1": "Tarjeta de crédito",
- "dd2": "Préstamo del teléfono"
+ "dd2": "Préstamo del teléfono",
+ "ai_on": "Nemotron · En línea",
+ "ai_off": "FAQ sin conexión",
+ "thk_tip": "Pensamiento profundo (mostrar razonamiento)",
+ "thk_sum": "Razonamiento de Buck",
+ "act_apply": "✨ Aplicar a mi plan",
+ "act_done": "✓ Aplicado a tu plan",
+ "r_ai": "✨ Resumen con IA de Buck",
+ "r_ai_h": "Resumen ejecutivo con IA de Buck",
+ "r_ai_wait": "Generando resumen con IA…"
 }

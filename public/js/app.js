@@ -126,6 +126,7 @@ function buildReport() {
   const shot = (fn, w, h) => { try { const c = document.createElement('canvas'); c.width = w; c.height = h; Charts.light = true; fn(c); Charts.light = false; return `<img alt="" src="${c.toDataURL()}">`; } catch { Charts.light = false; return ''; } };
   const grd = sc.total >= 80 ? 'a' : sc.total >= 60 ? 'b' : sc.total >= 40 ? 'c' : 'd', parts = catParts();
   $('#report').innerHTML = `<div class="rh"><span class="mark dark"><i></i><i></i><i></i></span><div><h1>${t('title')} · ${t('r_doc')}</h1><small>${t('r_date', { d: new Date().toLocaleDateString(lang) })}</small></div></div>
+<div id="ai-sum-box" class="ai-sum" ${S.aiSummary ? '' : 'hidden'}><b>✨ ${t('r_ai_h')}:</b> <span id="ai-sum-txt">${esc(S.aiSummary || '')}</span></div>
 <h2>${t('r_score')}: ${sc.total}/100 (${t('gr_' + grd)})</h2><table>${Object.entries(sc.parts).map(([x, v]) => `<tr><td>${t('sc_' + x)}</td><td>${Math.round(v)}/100</td></tr>`).join('')}</table>
 <table><tr><td>${t('kpi_net')}</td><td>${money(k.net)}</td><td>${t('kpi_sur')}</td><td>${money(k.surplus)}</td></tr><tr><td>${t('kpi_rate')}</td><td>${k.rate.toFixed(0)}%</td><td>${t('kpi_run')}</td><td>${k.runway.toFixed(1)} ${t('mo')}</td></tr></table>
 <h2>${t('r_budget')}</h2><table><tr><th>${t('cat_col')}</th><th>${t('amt_col')}</th><th>${t('pct_col')}</th></tr>${S.cats.map(c => `<tr><td>${esc(catName(c))}</td><td>${money(num(c.amount))}</td><td>${p.income ? Math.round(num(c.amount) / p.income * 100) : 0}%</td></tr>`).join('')}</table>${parts.length ? shot(c => Charts.donut(c, parts, money), 800, Math.max(300, parts.length * 26 + 70)) : ''}${shot(c => drawBars3(c, b), 800, 190)}
@@ -170,6 +171,7 @@ document.addEventListener('click', e => {
   else if (d.del) { const [k, i] = d.del.split('.'); S[k].splice(+i, 1); drawLists(); renderAll(); }
   else if (d.add) { S[d.add].push(ADD[d.add]()); drawLists(); renderAll(); }
   else if (b.id === 'listen') say(nextText); else if (b.id === 'tour') tour(); else if (b.id === 'print') { buildReport(); window.print(); }
+  else if (b.id === 'aisum' && window.genReportSummary) window.genReportSummary();
   else if (b.id === 'demo') demo(); else if (b.id === 'reset') { if (confirm(t('reset_q'))) { S = fresh(); drawLists(); renderAll(); } }
   else if (b.id === 'askplan') { $('#chat').hidden = false; ask(t('c1')); }
 });
