@@ -8,6 +8,7 @@ function applyTheme(choice = 'system') {
   document.documentElement.dataset.theme = selected === 'system' ? (themeMedia?.matches ? 'dark' : 'light') : selected;
   const picker = $('#theme'); if (picker) picker.value = selected;
   try { localStorage.setItem(THEME_KEY, selected); } catch {}
+  if (typeof renderAll === 'function' && typeof S !== 'undefined' && S && Object.keys(T).length) renderAll();
 }
 try { applyTheme(localStorage.getItem(THEME_KEY) || 'system'); } catch { applyTheme('system'); }
 themeMedia?.addEventListener?.('change', () => { if ((localStorage.getItem(THEME_KEY) || 'system') === 'system') applyTheme('system'); });
@@ -32,7 +33,7 @@ const currencyCode = () => ['USD','MXN','CAD','EUR','GBP'].includes(S?.currency)
 const money = n => new Intl.NumberFormat(lang === 'es' ? 'es-MX' : 'en-US', { style: 'currency', currency: currencyCode(), maximumFractionDigits: 0 }).format(Math.round(n));
 const short = n => new Intl.NumberFormat(lang === 'es' ? 'es-MX' : 'en-US', { style: 'currency', currency: currencyCode(), notation: 'compact', maximumFractionDigits: 1 }).format(Math.round(n));
 const mlabel = (ym, long) => { const [y, m] = ym.split('-'); return new Intl.DateTimeFormat(lang, { month: 'short', year: long ? 'numeric' : '2-digit' }).format(new Date(+y, +m - 1, 1)); };
-const COL = ['#da291c', '#4aa3ff', '#ffffff', '#9db0d3', '#ff7a6e', '#2f6fd6', '#d9e2f5', '#8a1a12', '#7ec0ff', '#ffb3ab'];
+const COL = ['#84cc16', '#06b6d4', '#22c55e', '#38bdf8', '#a3e635', '#14b8a6', '#facc15', '#fb7185', '#a855f7', '#60a5fa'];
 const mk = a => a.map(([key, amount, type]) => ({ key, amount, type }));
 const curYear = () => new Date().getFullYear();
 const fresh = () => ({ income: 0, savings: 0, invested: 0, currency: 'USD', demoMode: false, extra: '', ret: { y: 30, r: 7, m: '' }, debts: [], goals: [], special: [], hist: {},
@@ -179,8 +180,13 @@ function renderAll() {
   $('#scoreSource').textContent = t('score_source');
   $('#scoreMath').textContent = t('score_weights', { save: 25, run: 25, debt: 20, bal: 15, inv: 15 });
   $('#kpis').innerHTML = [['kpi_net', money(k.net)], ['kpi_sur', money(sur)], ['kpi_rate', k.rate.toFixed(0) + '%'], ['kpi_run', k.runway.toFixed(1) + ' ' + t('mo')], ['kpi_debt', money(Engine.debtTotal(p.debts))]].map(([a, v]) => `<div class="kpi"><span>${t(a)}</span><b>${v}</b></div>`).join('');
-  const grd = sc.total >= 80 ? 'a' : sc.total >= 60 ? 'b' : sc.total >= 40 ? 'c' : 'd', arc = 'M20 95 A70 70 0 0 1 160 95', len = Math.PI * 70;
-  $('#gauge').innerHTML = sc.quizDone ? `<svg viewBox="0 0 180 112" class="gauge" role="img" aria-label="${sc.total}/100"><defs><linearGradient id="gg" x1="0" x2="1"><stop offset="0" stop-color="#da291c"/><stop offset="1" stop-color="#4aa3ff"/></linearGradient></defs><path d="${arc}" fill="none" stroke="var(--track)" stroke-width="12" stroke-linecap="round"/><path d="${arc}" fill="none" stroke="url(#gg)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${len}" stroke-dashoffset="${len * (1 - sc.total / 100)}"/><text x="90" y="84" text-anchor="middle" class="gv">${sc.total}</text><text x="90" y="104" text-anchor="middle" class="gl">${t('gr_' + grd)}</text></svg>` : `<p class="score-pending">${esc(t('score_pending'))}</p>`;
+  const grd = sc.total >= 80 ? 'a' : sc.total >= 60 ? 'b' : sc.total >= 40 ? 'c' : 'd', arc = 'M24 96 A66 66 0 0 1 156 96', len = Math.PI * 66;
+  const gTicks = Array.from({ length: 19 }, (_, i) => {
+    const a = Math.PI + (i / 18) * Math.PI, x1 = (90 + Math.cos(a) * 78).toFixed(1), y1 = (96 + Math.sin(a) * 78).toFixed(1), x2 = (90 + Math.cos(a) * 83).toFixed(1), y2 = (96 + Math.sin(a) * 83).toFixed(1);
+    const lit = (i / 18) <= (sc.total / 100);
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${lit ? 'var(--accent-gold)' : 'var(--border-color)'}" stroke-width="${i % 3 === 0 ? 2.2 : 1.2}" opacity="${lit ? 1 : .45}"/>`;
+  }).join('');
+  $('#gauge').innerHTML = sc.quizDone ? `<svg viewBox="0 0 180 116" class="gauge" role="img" aria-label="${sc.total}/100"><defs><linearGradient id="gg" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="var(--cyber-cyan)"/><stop offset="55%" stop-color="var(--accent-gold)"/><stop offset="100%" stop-color="var(--success)"/></linearGradient><filter id="glw"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>${gTicks}<path d="${arc}" fill="none" stroke="color-mix(in srgb,var(--text-secondary) 18%,var(--bg-secondary))" stroke-width="11" stroke-linecap="round"/><path d="M34 96 A56 56 0 0 1 146 96" fill="none" stroke="var(--border-color)" stroke-width="1.5" stroke-dasharray="3 3" opacity=".6"/><path d="${arc}" fill="none" stroke="url(#gg)" filter="url(#glw)" stroke-width="11" stroke-linecap="round" stroke-dasharray="${len}" stroke-dashoffset="${len * (1 - sc.total / 100)}"/><text x="90" y="79" text-anchor="middle" class="gv">${sc.total}</text><text x="90" y="100" text-anchor="middle" class="gl">${t('gr_' + grd)} · AI</text></svg>` : `<p class="score-pending">${esc(t('score_pending'))}</p>`;
   $('#parts').innerHTML = sc.quizDone ? Object.entries(sc.parts).map(([x, v]) => `<li><span>${t('sc_' + x)}</span><div class="m"><i style="width:${v}%"></i></div><b>${Math.round(v)}</b></li>`).join('') : '';
   const starter = Math.min(1000, p.expenses || 1000), full = p.expenses * 3, eta = (c, g) => { const m = Engine.months(c, g, sur); return m === 0 ? t('reached') : m === Infinity ? t('nosurplus') : t('monthsTo', { n: m }); };
   const dr = Engine.payoff(p.debts, Math.max(0, sur), 'avalanche'), fin = Engine.compound(p.invested, Math.max(0, sur / 2), 7, 30).pop();
@@ -235,7 +241,7 @@ function buildReport() {
   const p = P(), b = Engine.budget(S.cats, p.income), sc = Engine.score(p, b, S.quiz), gs = goalsCalc(p), f = fc(), L = Engine.levels(LP()), cur = L.indexOf(false), k = Engine.kpis(p);
   const shot = (fn, w, h) => { try { const c = document.createElement('canvas'); c.width = w; c.height = h; Charts.light = true; fn(c); Charts.light = false; return `<img alt="" src="${c.toDataURL()}">`; } catch { Charts.light = false; return ''; } };
   const grd = sc.total >= 80 ? 'a' : sc.total >= 60 ? 'b' : sc.total >= 40 ? 'c' : 'd', parts = catParts(), reportPlan = Engine.actionPlan(p, gs);
-  $('#report').innerHTML = `<div class="rh"><svg class="report-logo" viewBox="0 0 48 48" role="img" aria-label="MoneyMente"><path d="M24 4C13 4 5 12 5 23c0 11 8 20 19 20s19-9 19-20S35 4 24 4Z" fill="none" stroke="#087c67" stroke-width="3"/><path d="M14 29v-8l6 4v-9l7 6 7-10" fill="none" stroke="#087c67" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M29 12h5v5" fill="none" stroke="#087c67" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg><div><h1>${t('title')} · ${t('r_doc')}</h1><small>${t('r_date', { d: new Date().toLocaleDateString(lang) })}</small></div></div>
+  $('#report').innerHTML = `<div class="rh"><svg class="report-logo" viewBox="0 0 40 40" role="img" aria-label="MoneyMente"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#4d7c0f" stroke-width="2.6"/><circle cx="20" cy="20" r="11" fill="none" stroke="#0284c7" stroke-width="1.3" stroke-dasharray="4 2"/><path d="M12 25l5-6 4 3 7-9" fill="none" stroke="#4d7c0f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="28" cy="13" r="2.4" fill="#0284c7"/></svg><div><h1>${t('title')} · ${t('r_doc')}</h1><small>${t('r_date', { d: new Date().toLocaleDateString(lang) })}</small></div></div>
 <div id="ai-sum-box" class="ai-sum" ${S.aiSummary ? '' : 'hidden'}><b>✨ ${t('r_ai_h')}:</b> <span id="ai-sum-txt">${esc(S.aiSummary || '')}</span></div>
 <h2>${t('r_score')}: ${sc.quizDone ? `${sc.total}/100 (${t('gr_' + grd)})` : esc(t('score_pending'))}</h2>${sc.quizDone ? `<table>${Object.entries(sc.parts).map(([x, v]) => `<tr><td>${t('sc_' + x)}</td><td>${Math.round(v)}/100</td></tr>`).join('')}</table>` : ''}
 <table><tr><td>${t('kpi_net')}</td><td>${money(k.net)}</td><td>${t('kpi_sur')}</td><td>${money(k.surplus)}</td></tr><tr><td>${t('kpi_rate')}</td><td>${k.rate.toFixed(0)}%</td><td>${t('kpi_run')}</td><td>${k.runway.toFixed(1)} ${t('mo')}</td></tr></table>
