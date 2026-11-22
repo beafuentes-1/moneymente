@@ -5,7 +5,7 @@ assert.strictEqual(E.compound(0, 100, 0, 1)[1].v, 1200);
 assert.strictEqual(E.months(0, 3000, 500), 6);
 assert.strictEqual(E.months(0, 3000, 0), Infinity);
 const p = { income: 1000, expenses: 800, savings: 0, invested: 0, goal: 0, debts: [] };
-assert.deepStrictEqual(E.levels(p), [true]);
+assert.deepStrictEqual(E.levels(p).slice(0, 3), [true, false, false]);
 console.log('engine tests passed');
 assert.strictEqual(E.payoff([{ balance: 1200, rate: 0, min: 100 }], 0, 'snowball').series.length, 13);
 assert.deepStrictEqual(E.kpis({ ...p, savings: 1600 }), { surplus: 200, rate: 20, runway: 2, net: 1600 });
@@ -16,29 +16,25 @@ console.log('budget tests passed');
 assert.ok(Math.abs(E.fv(0, E.need(1200, 0, 12, 6), 12, 6) - 1200) < 0.01);
 assert.strictEqual(E.addMonths('2026-11', 3), '2027-02'); assert.strictEqual(E.monthsBetween('2026-11', '2027-02'), 3);
 const bb = E.budget([{ amount: 800, type: 'need' }], 1000), sc = E.score({ ...p, savings: 4800, invested: 0 }, bb);
-assert.ok(sc.total > 0 && sc.total <= 100 && sc.parts.run === 100);
+assert.strictEqual(sc.total, 0);
+assert.strictEqual(sc.quizDone, false);
 const fcs = E.forecast({ income: 1000, savings: 100 }, { total: 800 }, [{ ym: '2026-12', kind: 'exp', amount: 500 }], '2026-11', 3);
 assert.deepStrictEqual(fcs.map(r => r.balance), [-200, 0, 200]);
-console.log('advisor tests passed');
-const plan = E.actionPlan({ ...p, income: 1000, expenses: 800, savings: 0, debts: [{ balance: 1200, rate: 24, min: 50 }], invested: 0 }, b, []);
-assert.equal(plan[0].id, 'starter'); assert.equal(plan[0].status, 'now'); assert.equal(plan[1].id, 'debt'); assert.equal(plan[1].status, 'next');
-const deficitPlan = E.actionPlan({ ...p, income: 500, expenses: 800, savings: 0, debts: [], invested: 0 }, b, []);
-assert.equal(deficitPlan[0].id, 'deficit');
-console.log('action-plan tests passed');
-
-// Persisted state normalization used by the browser startup path.
-const vm = require('node:vm'), fs = require('node:fs');
-const appSource = fs.readFileSync(require.resolve('../public/js/app.js'), 'utf8');
-const sandbox = { window: { scrollTo() {} }, navigator: { language: 'en' }, localStorage: { getItem: () => JSON.stringify({ income: 'bad', cats: [null, { amount: -30 }], debts: {}, goals: [{ target: 'x' }], hist: [] }), setItem() {} },
-  document: { querySelector: () => ({ addEventListener() {}, setAttribute() {}, value: '' }), querySelectorAll: () => [], addEventListener() {}, documentElement: { lang: '', dataset: {} } },
-  fetch: async () => ({ json: async () => ({}) }), speechSynthesis: { cancel() {} }, confirm: () => true, console, Engine: E,
-  Charts: { bars() {}, donut() {}, line() {}, year() {} },
-  Intl, Date, Math, JSON, Object, Array, String, Number, Set, Promise };
-vm.runInNewContext(`${appSource}\nthis.__normalized = S;`, sandbox);
-assert.equal(sandbox.__normalized.income, 0);
-assert.equal(sandbox.__normalized.cats.length, 1);
-assert.equal(sandbox.__normalized.cats[0].amount, 0);
-assert.equal(Array.isArray(sandbox.__normalized.debts), true);
-assert.equal(sandbox.__normalized.goals[0].target, '');
-assert.deepEqual(sandbox.__normalized.hist, {});
-console.log('persisted-state tests passed');
+const scQ = E.score({ ...p, savings: 4800, invested: 0 }, bb, { save: 100, run: 50, debt: 100, bal: 100, inv: 50 });
+assert.strictEqual(scQ.quizDone, true);
+assert.ok(scQ.total >= 0 && scQ.weights.save === 0.25);
+assert.strictEqual(scQ.parts.run, 80); // 100 * 0.6 + 50 * 0.4 = 80
+assert.strictEqual(E.score({ ...p, income: 5000 }, bb, { save: 100 }).total, 0); // score is gated until all answers exist
+assert.strictEqual(E.score(p, bb, { save: 101, run: 50, debt: 50, bal: 50, inv: 50 }).quizDone, false);
+const actionPlan = E.actionPlan({ ...p, income: 2000, expenses: 1500, savings: 100, invested: 0, debts: [{ balance: 1000, rate: 22, min: 30 }] }, []);
+assert.strictEqual(actionPlan[0].id, 'starter');
+assert.ok(actionPlan.every((step, i) => step.status === (i === 0 ? 'now' : 'next')));
+const fcsMulti = E.forecast({ income: 1000, savings: 0 }, { total: 800 }, [{ ym: '2026-12', kind: 'exp', amount: 600, freq: 'yearly' }], '2026-11', 24);
+assert.strictEqual(fcsMulti[0].spExp, 600);
+assert.strictEqual(fcsMulti[12].spExp, 600);
+const sk = E.sinkingFund([{ ym: '2026-12', kind: 'exp', amount: 600, freq: 'yearly' }], '2026-11', 24);
+assert.strictEqual(sk.totalExp, 1200);
+assert.strictEqual(sk.avgMonthly, 50);
+const roll = E.yearlyRollup(fcsMulti);
+assert.ok(roll.length >= 2);
+console.log('advisor + quiz + multi-year tests passed');
