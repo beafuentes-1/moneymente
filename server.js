@@ -6,6 +6,7 @@ const MAX_BODY = 20000;
 const LLAMA_URLS = process.env.LLAMA_URL ? [process.env.LLAMA_URL] : ['http://127.0.0.1:8080/v1/chat/completions', 'http://127.0.0.1:9931/v1/chat/completions'];
 let activeLlama = LLAMA_URLS[0];
 async function resolveLlama() {
+  if (process.env.LLAMA_URL) return process.env.LLAMA_URL;
   for (const u of LLAMA_URLS) {
     try { const r = await fetch(u.replace(/\/v1\/chat\/completions$/, '/health'), { signal: AbortSignal.timeout(1200) }); if (r.ok) return (activeLlama = u); } catch {}
   }
