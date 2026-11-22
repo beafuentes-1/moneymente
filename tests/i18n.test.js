@@ -31,7 +31,7 @@ for (const area of ['save', 'run', 'debt', 'bal', 'inv']) {
 for (const id of ['numbers', 'deficit', 'starter', 'debt', 'reserve', 'goals', 'invest', 'maintain']) {
   refs.add(`plan_${id}`); refs.add(`plan_${id}_d`);
 }
-for (const category of ['housing', 'food', 'transport', 'utilities', 'health', 'fun', 'shopping', 'other']) refs.add(`cat_${category}`);
+for (const category of ['housing', 'food', 'transport', 'utilities', 'health', 'debts', 'savings', 'investments', 'unexpected', 'fun', 'shopping', 'other']) refs.add(`cat_${category}`);
 
 for (const [lang, dictionary] of [['en', en], ['es', es]]) {
   const missing = [...refs].filter(key => !(key in dictionary));

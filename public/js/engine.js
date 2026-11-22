@@ -28,8 +28,9 @@
   };
   E.kpis = p => ({ surplus: p.income - p.expenses, rate: p.income ? (p.income - p.expenses) / p.income * 100 : 0, runway: p.expenses ? p.savings / p.expenses : 0, net: p.savings + p.invested - E.debtTotal(p.debts) });
   E.budget = (cats, income) => { const n = c => +c.amount || 0, total = cats.reduce((s, c) => s + n(c), 0), needs = cats.filter(c => c.type === 'need').reduce((s, c) => s + n(c), 0),
-    pc = v => income ? v / income * 100 : 0, save = Math.max(0, income - total);
-    return { total, needs, wants: total - needs, save, pct: { needs: pc(needs), wants: pc(total - needs), save: pc(save) }, top: [...cats].sort((a, b) => n(b) - n(a))[0] }; };
+    catSave = cats.filter(c => c.type === 'save').reduce((s, c) => s + n(c), 0), wants = Math.max(0, total - needs - catSave),
+    pc = v => income ? v / income * 100 : 0, save = Math.max(0, income - total) + catSave;
+    return { total, needs, wants, save, pct: { needs: pc(needs), wants: pc(wants), save: pc(save) }, top: [...cats].sort((a, b) => n(b) - n(a))[0] }; };
   E.score = (p, b, quiz) => {
     const k = E.kpis(p), cl = v => Math.max(0, Math.min(100, v)), inc = p.income || 0;
     const numParts = { save: cl(b.pct.save / 20 * 100), run: cl(k.runway / 6 * 100), debt: inc ? cl(100 - E.debtTotal(p.debts) / (inc * 12) * 100) : 0,

@@ -46,7 +46,7 @@ const fresh = () => ({ income: 0, savings: 0, invested: 0, currency: 'USD', demo
   actions: [{ titleKey: 'task_ledger', title: '', ym: Engine.addMonths(nowYM(), 1), amount: 0, done: false },
     { titleKey: 'task_automate', title: '', ym: Engine.addMonths(nowYM(), 1), amount: 200, done: false },
     { titleKey: 'task_annual', title: '', ym: Engine.addMonths(nowYM(), 3), amount: 0, done: false }],
-  cats: mk([['housing', 0, 'need'], ['food', 0, 'need'], ['transport', 0, 'need'], ['utilities', 0, 'need'], ['health', 0, 'need'], ['fun', 0, 'want'], ['shopping', 0, 'want'], ['other', 0, 'want']]) });
+  cats: mk([['housing', 0, 'need'], ['food', 0, 'need'], ['transport', 0, 'need'], ['utilities', 0, 'need'], ['health', 0, 'need'], ['debts', 0, 'save'], ['savings', 0, 'save'], ['investments', 0, 'save'], ['unexpected', 0, 'need'], ['fun', 0, 'want'], ['shopping', 0, 'want'], ['other', 0, 'want']]) });
 function normalizeState(raw) {
   const d = fresh(); if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return d;
   const finite = (v, fallback = 0) => Number.isFinite(+v) && +v >= 0 ? +v : fallback;
@@ -54,11 +54,16 @@ function normalizeState(raw) {
   const s = { ...d, ...raw, currency: ['USD','MXN','CAD','EUR','GBP'].includes(raw.currency) ? raw.currency : 'USD', demoMode: raw.demoMode === true, income: finite(raw.income), savings: finite(raw.savings), invested: finite(raw.invested),
     quiz: { ...d.quiz, ...(raw.quiz && typeof raw.quiz === 'object' ? raw.quiz : {}) }, actions: list(raw.actions, d.actions, x => ({ title: String(x.title || ''), titleKey: Object.values(legacyTaskKeys).includes(x.titleKey) ? x.titleKey : '', ym: /^\d{4}-\d{2}$/.test(x.ym) ? x.ym : '', amount: finite(x.amount), done: !!x.done })),
     debts: list(raw.debts, d.debts, x => ({ name: String(x.name || ''), balance: finite(x.balance), rate: finite(x.rate), min: finite(x.min) })),
-    cats: list(raw.cats, d.cats, x => ({ key: String(x.key || ''), name: String(x.name || ''), amount: finite(x.amount), type: x.type === 'need' ? 'need' : 'want' })),
+    cats: list(raw.cats, d.cats, x => ({ key: String(x.key || ''), name: String(x.name || ''), amount: finite(x.amount), type: ['need', 'want', 'save'].includes(x.type) ? x.type : 'want' })),
     goals: list(raw.goals, d.goals, x => ({ ...x, name: String(x.name || ''), target: finite(x.target), current: finite(x.current), monthly: x.monthly === '' ? '' : finite(x.monthly) })),
     special: list(raw.special, d.special, x => ({ ...x, name: String(x.name || ''), amount: finite(x.amount), kind: x.kind === 'inc' ? 'inc' : 'exp', freq: ['once','yearly','quarterly','monthly'].includes(x.freq) ? x.freq : 'once' })),
     hist: raw.hist && typeof raw.hist === 'object' && !Array.isArray(raw.hist) ? Object.fromEntries(Object.entries(raw.hist).filter(([ym,v]) => /^\d{4}-\d{2}$/.test(ym) && v && typeof v === 'object').map(([ym,v]) => [ym,{ income: finite(v.income), expenses: finite(v.expenses) }])) : {} };
   if (!s.cats.length) s.cats = d.cats;
+  else {
+    for (const [k, amt, tp] of [['debts', 0, 'save'], ['savings', 0, 'save'], ['investments', 0, 'save'], ['unexpected', 0, 'need']]) {
+      if (!s.cats.some(c => c.key === k)) s.cats.push({ key: k, name: '', amount: amt, type: tp });
+    }
+  }
   s.ledgerYear = Number.isInteger(+s.ledgerYear) ? +s.ledgerYear : curYear(); s.horizon = [12,24,36,60].includes(+s.horizon) ? +s.horizon : 36;
   s.quizOpen = raw.quizOpen !== false; return s;
 }
@@ -132,7 +137,7 @@ function drawLists() {
   const p = P(), sur = Math.max(0, p.income - p.expenses); $('#extra').value = S.extra; $('#extra').placeholder = money(sur);
   drawQuiz();
   $('#debts').innerHTML = S.debts.map((d, i) => `<div class="row4">${['name', 'balance', 'rate', 'min'].map(k => inp(`debts.${i}.${k}`, k === 'name' ? 'text' : 'number', t('d_' + k))).join('')}<button class="x" data-del="debts.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div>`).join('');
-  $('#cats').innerHTML = S.cats.map((c, i) => `<div class="row3">${inp(`cats.${i}.name`, 'text', t('d_name'), catName(c))}${inp(`cats.${i}.amount`, 'number', t('cat_amt'))}${sel(`cats.${i}.type`, [['need', t('need')], ['want', t('want')]], t('cat_type'))}<button class="x" data-del="cats.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div>`).join('');
+  $('#cats').innerHTML = S.cats.map((c, i) => `<div class="row3">${inp(`cats.${i}.name`, 'text', t('d_name'), catName(c))}${inp(`cats.${i}.amount`, 'number', t('cat_amt'))}${sel(`cats.${i}.type`, [['need', t('need')], ['want', t('want')], ['save', t('save')]], t('cat_type'))}<button class="x" data-del="cats.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div>`).join('');
   $('#goals').innerHTML = S.goals.length ? S.goals.map((g, i) => `<div class="goal"><div class="gin">${fld(`goals.${i}.name`, 'text', t('g_name'))}${fld(`goals.${i}.target`, 'number', t('g_target'))}${fld(`goals.${i}.current`, 'number', t('g_have'))}${sfld(`goals.${i}.date`, dateOpts(), t('g_date'))}${fld(`goals.${i}.monthly`, 'number', t('g_monthly'))}<button class="x" data-del="goals.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div><div class="gres" data-gi="${i}"></div></div>`).join('') : `<p class="mu">${t('g_none')}</p>`;
   gsel = Math.min(gsel, Math.max(0, S.goals.length - 1));
   $('#gsel').innerHTML = S.goals.map((g, i) => `<option value="${i}" ${i === gsel ? 'selected' : ''}>${esc(g.name || t('g_unnamed'))}</option>`).join('');
@@ -279,7 +284,7 @@ function demo() {
   const n = nowYM(), a = k => Engine.addMonths(n, k), yr = curYear();
   S = { ...fresh(), currency: S.currency || 'USD', demoMode: true, income: 2200, savings: 900, invested: 300, quiz: { save: '50', run: '50', debt: '50', bal: '100', inv: '50' }, quizOpen: false, ledgerYear: yr, horizon: 36, incGrowth: 3, inflation: 3,
     debts: [{ name: t('dd1'), balance: 1800, rate: 28, min: 60 }, { name: t('dd2'), balance: 600, rate: 12, min: 35 }],
-    cats: mk([['housing', 520, 'need'], ['food', 380, 'need'], ['transport', 160, 'need'], ['utilities', 130, 'need'], ['health', 60, 'need'], ['fun', 150, 'want'], ['shopping', 110, 'want'], ['other', 90, 'want']]),
+    cats: mk([['housing', 520, 'need'], ['food', 360, 'need'], ['transport', 140, 'need'], ['utilities', 120, 'need'], ['health', 60, 'need'], ['debts', 95, 'save'], ['savings', 120, 'save'], ['investments', 80, 'save'], ['unexpected', 55, 'need'], ['fun', 130, 'want'], ['shopping', 80, 'want'], ['other', 40, 'want']]),
     goals: [{ name: t('dg1'), target: 7000, current: 900, date: a(18), monthly: '' }, { name: t('dg2'), target: 1200, current: 200, date: a(8), monthly: '' }, { name: t('dg3'), target: 15000, current: 0, date: a(60), monthly: 200 }],
     special: [{ name: t('ds1'), ym: a(1), amount: 250, kind: 'exp', freq: 'yearly' }, { name: t('ds2'), ym: a(2), amount: 400, kind: 'inc', freq: 'yearly' }, { name: t('ds3'), ym: a(6), amount: 600, kind: 'exp', freq: 'yearly' }],
     actions: [{ titleKey: 'demo_starter', title: '', ym: a(1), amount: 100, done: false },
