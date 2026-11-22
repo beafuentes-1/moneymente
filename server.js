@@ -36,7 +36,7 @@ function prompt(lang, facts, ctx, mode) {
   }
   return `You are Buck, the friendly AI assistant of MoneyMente, a personal financial advisor app. You explain the user's plan, score, debts (including snowball vs avalanche payoff months and interest saved) and goals. Answer ONLY with the CONTEXT and USER STATE below. Reply in ${L}, in at most 4 short sentences, no tables. Never invent numbers: use the exact numbers in USER STATE. When asked for the next step or action plan, follow USER STATE actionPlan[0].title and actionPlan[0].description exactly, including remaining gaps; do not suggest an already met target. When asked for the next step or action plan, follow USER STATE actionPlan[0].title and actionPlan[0].description exactly, including remaining gaps; do not suggest an already met target. If the user asks to change, add, or simulate ("what if") a budget category, income, savings, invested amount, extra debt payment, goal, debt, or special item, answer their question AND append a final line starting with ACTION_JSON: followed by a valid JSON object matching one of: {"type":"set_category","name":"<category name>","amount":<number>} | {"type":"set_field","field":"income"|"savings"|"invested"|"extra","amount":<number>} | {"type":"add_goal","name":"<name>","target":<number>,"months":<number>} | {"type":"add_special","name":"<name>","ym":"YYYY-MM","amount":<number>,"kind":"exp"|"inc"} | {"type":"add_debt","name":"<name>","balance":<number>,"rate":<number>,"min":<number>}. Only include ACTION_JSON when the user asks to update or simulate a change. If the answer is not in the context or user state, say you do not cover that and suggest a related topic. Educational only, not financial advice; never recommend specific stocks or products.\n\nUSER STATE: ${JSON.stringify(facts)}\n\nCONTEXT:\n` + ctx.map(c => `[${c.id}] ${c.title}: ${c.text}`).join('\n');
 }
-function parseOutput(raw, reasoningField) {
+function parseOutput(raw, reasoningField, clipped) {
   let thinking = (reasoningField || '').trim(), text = String(raw || '');
   const m = text.match(/<think>([\s\S]*?)<\/think>/i);
   if (m) thinking = (thinking ? thinking + '\n' : '') + m[1].trim();
@@ -50,6 +50,11 @@ function parseOutput(raw, reasoningField) {
   if (am) {
     try { action = JSON.parse(am[1]); text = text.slice(0, am.index).trim(); } catch {}
   }
+  text = text.replace(/\n*ACTION_JSON:[\s\S]*$/i, '').trim();
+  if (clipped && text && !/[.!?…)"»]$/.test(text)) {
+    const lastEnd = Math.max(text.lastIndexOf('. '), text.lastIndexOf('! '), text.lastIndexOf('? '), text.lastIndexOf('.\n'));
+    text = lastEnd > 40 ? text.slice(0, lastEnd + 1).trim() : text + '.';
+  }
   return { reply: text, thinking, action };
 }
 function buildPayload(b) {
@@ -57,7 +62,7 @@ function buildPayload(b) {
   const { ctx, best } = retrieve(lang, String(b.message || ''), +facts.levelIndex || 0);
   const body = {
     messages: [{ role: 'system', content: prompt(lang, facts, ctx, mode) }, ...(b.history || []).slice(-4), { role: 'user', content: String(b.message || '') }],
-    max_tokens: think ? 900 : 400,
+    max_tokens: think ? 1100 : 600,
     temperature: 0.3,
     cache_prompt: true,
     chat_template_kwargs: { enable_thinking: think }
@@ -69,8 +74,8 @@ async function chat(b) {
   try {
     const url = (await resolveLlama()) || activeLlama;
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(120000), body: JSON.stringify(body) });
-    const j = await r.json(), msg = j.choices?.[0]?.message || {};
-    const { reply, thinking, action } = parseOutput(msg.content, msg.reasoning_content);
+    const j = await r.json(), choice = j.choices?.[0] || {}, msg = choice.message || {};
+    const { reply, thinking, action } = parseOutput(msg.content, msg.reasoning_content, choice.finish_reason === 'length');
     if (!reply) throw new Error('empty');
     return { reply, thinking, action, sources: ctx.map(c => c.id) };
   } catch (e) { return { reply: best.text, sources: ctx.map(c => c.id), fallback: true }; }
@@ -83,7 +88,7 @@ async function streamChat(b, res) {
     const url = (await resolveLlama()) || activeLlama;
     const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(120000), body: JSON.stringify({ ...body, stream: true }) });
     if (!r.ok || !r.body) throw new Error('bad_upstream');
-    let rawContent = '', rawReasoning = '', buf = '';
+    let rawContent = '', rawReasoning = '', buf = '', clipped = false;
     const dec = new TextDecoder();
     for await (const chunk of r.body) {
       buf += dec.decode(chunk, { stream: true });
@@ -92,15 +97,16 @@ async function streamChat(b, res) {
         const s = ln.trim(); if (!s.startsWith('data:')) continue;
         const d = s.slice(5).trim(); if (d === '[DONE]') continue;
         try {
-          const j = JSON.parse(d), delta = j.choices?.[0]?.delta || {};
+          const j = JSON.parse(d), ch = j.choices?.[0] || {}, delta = ch.delta || {};
+          if (ch.finish_reason === 'length') clipped = true;
           if (delta.reasoning_content) rawReasoning += delta.reasoning_content;
           if (delta.content) rawContent += delta.content;
-          const cur = parseOutput(rawContent, rawReasoning);
+          const cur = parseOutput(rawContent, rawReasoning, false);
           send({ type: 'delta', reply: cur.reply, thinking: cur.thinking });
         } catch {}
       }
     }
-    const fin = parseOutput(rawContent, rawReasoning);
+    const fin = parseOutput(rawContent, rawReasoning, clipped);
     if (!fin.reply) throw new Error('empty');
     send({ type: 'done', ...fin, sources: ctx.map(c => c.id) });
   } catch {

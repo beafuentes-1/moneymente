@@ -31,7 +31,13 @@ const actionTitle = a => a.titleKey ? t(a.titleKey, { amount: money(a.amount) })
 const currencyCode = () => ['USD','MXN','CAD','EUR','GBP'].includes(S?.currency) ? S.currency : 'USD';
 const money = n => new Intl.NumberFormat(lang === 'es' ? 'es-MX' : 'en-US', { style: 'currency', currency: currencyCode(), maximumFractionDigits: 0 }).format(Math.round(n));
 const short = n => new Intl.NumberFormat(lang === 'es' ? 'es-MX' : 'en-US', { style: 'currency', currency: currencyCode(), notation: 'compact', maximumFractionDigits: 1 }).format(Math.round(n));
-const mlabel = (ym, long) => { const [y, m] = ym.split('-'); return new Intl.DateTimeFormat(lang, { month: 'short', year: long ? 'numeric' : '2-digit' }).format(new Date(+y, +m - 1, 1)); };
+const mlabel = (ym, long) => {
+  const [y, m] = String(ym || '').split('-');
+  if (!y || !m) return String(ym || '');
+  if (!long) return `${String(+m).padStart(2, '0')}/${String(y).slice(-2)}`;
+  const name = new Intl.DateTimeFormat(lang, { month: 'long' }).format(new Date(+y, +m - 1, 1));
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${y}`;
+};
 const COL = ['#84cc16', '#06b6d4', '#22c55e', '#38bdf8', '#a3e635', '#14b8a6', '#facc15', '#fb7185', '#a855f7', '#60a5fa'];
 const mk = a => a.map(([key, amount, type]) => ({ key, amount, type }));
 const curYear = () => new Date().getFullYear();
@@ -240,7 +246,7 @@ function buildReport() {
   const p = P(), b = Engine.budget(S.cats, p.income), sc = Engine.score(p, b, S.quiz), gs = goalsCalc(p), f = fc(), L = Engine.levels(LP()), cur = L.indexOf(false), k = Engine.kpis(p);
   const shot = (fn, w, h) => { try { const c = document.createElement('canvas'); c.width = w; c.height = h; Charts.light = true; fn(c); Charts.light = false; return `<img alt="" src="${c.toDataURL()}">`; } catch { Charts.light = false; return ''; } };
   const grd = sc.total >= 80 ? 'a' : sc.total >= 60 ? 'b' : sc.total >= 40 ? 'c' : 'd', parts = catParts(), reportPlan = Engine.actionPlan(p, gs);
-  $('#report').innerHTML = `<div class="rh"><svg class="report-logo" viewBox="0 0 40 40" role="img" aria-label="MoneyMente"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#4d7c0f" stroke-width="2.6"/><circle cx="20" cy="20" r="11" fill="none" stroke="#0284c7" stroke-width="1.3" stroke-dasharray="4 2"/><path d="M12 25l5-6 4 3 7-9" fill="none" stroke="#4d7c0f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="28" cy="13" r="2.4" fill="#0284c7"/></svg><div><h1>${t('title')} · ${t('r_doc')}</h1><small>${t('r_date', { d: new Date().toLocaleDateString(lang) })}</small></div></div>
+  $('#report').innerHTML = `<div class="rh"><svg class="report-logo" viewBox="0 0 40 40" role="img" aria-label="MoneyMente"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#4d7c0f" stroke-width="2.6"/><circle cx="20" cy="20" r="11" fill="none" stroke="#0284c7" stroke-width="1.3" stroke-dasharray="4 2"/><path d="M12 25l5-6 4 3 7-9" fill="none" stroke="#4d7c0f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="28" cy="13" r="2.4" fill="#0284c7"/></svg><div><h1>${t('title')} · ${t('r_doc')}</h1><small>${t('r_date', { d: new Date().toLocaleDateString(lang, { year: 'numeric', month: '2-digit', day: '2-digit' }) })}</small></div></div>
 <div id="ai-sum-box" class="ai-sum" ${S.aiSummary ? '' : 'hidden'}><b>✨ ${t('r_ai_h')}:</b> <span id="ai-sum-txt">${esc(S.aiSummary || '')}</span></div>
 <h2>${t('r_score')}: ${sc.quizDone ? `${sc.total}/100 (${t('gr_' + grd)})` : esc(t('score_pending'))}</h2>${sc.quizDone ? `<table>${Object.entries(sc.parts).map(([x, v]) => `<tr><td>${t('sc_' + x)}</td><td>${Math.round(v)}/100</td></tr>`).join('')}</table>` : ''}
 <table><tr><td>${t('kpi_net')}</td><td>${money(k.net)}</td><td>${t('kpi_sur')}</td><td>${money(k.surplus)}</td></tr><tr><td>${t('kpi_rate')}</td><td>${k.rate.toFixed(0)}%</td><td>${t('kpi_run')}</td><td>${k.runway.toFixed(1)} ${t('mo')}</td></tr></table>
