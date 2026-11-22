@@ -8,7 +8,6 @@ function applyTheme(choice = 'system') {
   document.documentElement.dataset.theme = selected === 'system' ? (themeMedia?.matches ? 'dark' : 'light') : selected;
   const picker = $('#theme'); if (picker) picker.value = selected;
   try { localStorage.setItem(THEME_KEY, selected); } catch {}
-  if (typeof renderAll === 'function' && typeof S !== 'undefined' && S && Object.keys(T).length) renderAll();
 }
 try { applyTheme(localStorage.getItem(THEME_KEY) || 'system'); } catch { applyTheme('system'); }
 themeMedia?.addEventListener?.('change', () => { if ((localStorage.getItem(THEME_KEY) || 'system') === 'system') applyTheme('system'); });
@@ -294,7 +293,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const el = e.target;
-  if (el.id === 'theme') { applyTheme(el.value); return; }
+  if (el.id === 'theme') { applyTheme(el.value); renderAll(); return; }
   if (el.id === 'currency') { S.currency = el.value; renderAll(); return; }
   if (el.dataset.actChk !== undefined) { const idx = +el.dataset.actChk; if (S.actions[idx]) { S.actions[idx].done = el.checked; renderAll(); } }
 });
