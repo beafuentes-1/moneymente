@@ -28,6 +28,7 @@ assert.strictEqual(E.score({ ...p, income: 5000 }, bb, { save: 100 }).total, 0);
 assert.strictEqual(E.score(p, bb, { save: 101, run: 50, debt: 50, bal: 50, inv: 50 }).quizDone, false);
 const actionPlan = E.actionPlan({ ...p, income: 2000, expenses: 1500, savings: 100, invested: 0, debts: [{ balance: 1000, rate: 22, min: 30 }] }, []);
 assert.strictEqual(actionPlan[0].id, 'starter');
+assert.strictEqual(actionPlan[0].amount, 900, 'starter action should state the remaining gap rather than repeat the full target');
 assert.ok(actionPlan.every((step, i) => step.status === (i === 0 ? 'now' : 'next')));
 const fcsMulti = E.forecast({ income: 1000, savings: 0 }, { total: 800 }, [{ ym: '2026-12', kind: 'exp', amount: 600, freq: 'yearly' }], '2026-11', 24);
 assert.strictEqual(fcsMulti[0].spExp, 600);

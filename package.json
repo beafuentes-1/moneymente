@@ -1,1 +1,10 @@
-{"name":"moneymente","version":"0.2.0","description":"AI financial advisor, bilingual, local Nemotron bot, no API key","scripts":{"start":"node server.js","test":"node tests/engine.test.js && node tests/server.test.js && node tests/i18n.test.js"},"license":"MIT"}
+{
+  "name": "moneymente",
+  "version": "0.2.0",
+  "description": "AI financial advisor, bilingual, local Nemotron bot, no API key",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node tests/engine.test.js && node tests/server.test.js && node tests/i18n.test.js && node tests/browser.test.js"
+  },
+  "license": "MIT"
+}

@@ -1,7 +1,7 @@
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
 let T = {}, lang = ((localStorage.getItem('lang') || navigator.language || 'en').slice(0, 2)) === 'es' ? 'es' : 'en';
 let tab = 'overview', gsel = 0, touring = false, nextText = '';
-const canSpeak = 'speechSynthesis' in window, KEY = 'moneymente.v1';
+const canSpeak = 'speechSynthesis' in window, KEY = 'moneymente.v1', DEMO_BACKUP_KEY = 'moneymente.demoBackup.v1';
 const THEME_KEY = 'moneymente.theme', themeMedia = window.matchMedia?.('(prefers-color-scheme: dark)');
 function applyTheme(choice = 'system') {
   const selected = ['light', 'dark', 'system'].includes(choice) ? choice : 'system';
@@ -27,14 +27,15 @@ const legacyTaskKeys = {
   'Attack 28% credit card using Avalanche method': 'demo_debt',
   'Set aside monthly sinking fund for annual Holiday & Tuition expenses': 'demo_sinking'
 };
-const actionTitle = a => a.titleKey ? t(a.titleKey) : legacyTaskKeys[a.title] ? t(legacyTaskKeys[a.title]) : a.title;
-const money = n => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString(lang);
-const short = n => { const a = Math.abs(n), s = n < 0 ? '-' : ''; return a >= 1e6 ? s + '$' + (a / 1e6).toFixed(1) + 'M' : a >= 1e3 ? s + '$' + Math.round(a / 1e3) + 'k' : s + '$' + Math.round(a); };
+const actionTitle = a => a.titleKey ? t(a.titleKey, { amount: money(a.amount) }) : legacyTaskKeys[a.title] ? t(legacyTaskKeys[a.title], { amount: money(a.amount) }) : a.title;
+const currencyCode = () => ['USD','MXN','CAD','EUR','GBP'].includes(S?.currency) ? S.currency : 'USD';
+const money = n => new Intl.NumberFormat(lang === 'es' ? 'es-MX' : 'en-US', { style: 'currency', currency: currencyCode(), maximumFractionDigits: 0 }).format(Math.round(n));
+const short = n => new Intl.NumberFormat(lang === 'es' ? 'es-MX' : 'en-US', { style: 'currency', currency: currencyCode(), notation: 'compact', maximumFractionDigits: 1 }).format(Math.round(n));
 const mlabel = (ym, long) => { const [y, m] = ym.split('-'); return new Intl.DateTimeFormat(lang, { month: 'short', year: long ? 'numeric' : '2-digit' }).format(new Date(+y, +m - 1, 1)); };
 const COL = ['#da291c', '#4aa3ff', '#ffffff', '#9db0d3', '#ff7a6e', '#2f6fd6', '#d9e2f5', '#8a1a12', '#7ec0ff', '#ffb3ab'];
 const mk = a => a.map(([key, amount, type]) => ({ key, amount, type }));
 const curYear = () => new Date().getFullYear();
-const fresh = () => ({ income: 0, savings: 0, invested: 0, extra: '', ret: { y: 30, r: 7, m: '' }, debts: [], goals: [], special: [], hist: {},
+const fresh = () => ({ income: 0, savings: 0, invested: 0, currency: 'USD', demoMode: false, extra: '', ret: { y: 30, r: 7, m: '' }, debts: [], goals: [], special: [], hist: {},
   quiz: { save: '', run: '', debt: '', bal: '', inv: '' }, quizOpen: true, ledgerYear: curYear(), horizon: 36, incGrowth: 3, inflation: 3,
   actions: [{ titleKey: 'task_ledger', title: '', ym: Engine.addMonths(nowYM(), 1), amount: 0, done: false },
     { titleKey: 'task_automate', title: '', ym: Engine.addMonths(nowYM(), 1), amount: 200, done: false },
@@ -44,7 +45,7 @@ function normalizeState(raw) {
   const d = fresh(); if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return d;
   const finite = (v, fallback = 0) => Number.isFinite(+v) && +v >= 0 ? +v : fallback;
   const list = (v, fallback, map) => Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && !Array.isArray(x)).map(map) : fallback;
-  const s = { ...d, ...raw, income: finite(raw.income), savings: finite(raw.savings), invested: finite(raw.invested),
+  const s = { ...d, ...raw, currency: ['USD','MXN','CAD','EUR','GBP'].includes(raw.currency) ? raw.currency : 'USD', demoMode: raw.demoMode === true, income: finite(raw.income), savings: finite(raw.savings), invested: finite(raw.invested),
     quiz: { ...d.quiz, ...(raw.quiz && typeof raw.quiz === 'object' ? raw.quiz : {}) }, actions: list(raw.actions, d.actions, x => ({ title: String(x.title || ''), titleKey: Object.values(legacyTaskKeys).includes(x.titleKey) ? x.titleKey : '', ym: /^\d{4}-\d{2}$/.test(x.ym) ? x.ym : '', amount: finite(x.amount), done: !!x.done })),
     debts: list(raw.debts, d.debts, x => ({ name: String(x.name || ''), balance: finite(x.balance), rate: finite(x.rate), min: finite(x.min) })),
     cats: list(raw.cats, d.cats, x => ({ key: String(x.key || ''), name: String(x.name || ''), amount: finite(x.amount), type: x.type === 'need' ? 'need' : 'want' })),
@@ -130,6 +131,7 @@ function drawLists() {
   gsel = Math.min(gsel, Math.max(0, S.goals.length - 1));
   $('#gsel').innerHTML = S.goals.map((g, i) => `<option value="${i}" ${i === gsel ? 'selected' : ''}>${esc(g.name || t('g_unnamed'))}</option>`).join('');
   $('#special').innerHTML = S.special.map((s, i) => `<div class="sp">${fld(`special.${i}.name`, 'text', t('y_name'))}${sfld(`special.${i}.ym`, monthOpts(), t('y_month'))}${fld(`special.${i}.amount`, 'number', t('y_amt'))}${sfld(`special.${i}.kind`, [['exp', t('y_exp')], ['inc', t('y_inc')]], '·')}${sfld(`special.${i}.freq`, freqOpts(), t('y_freq'))}<button class="x" data-del="special.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div>`).join('');
+  if ($('#currency')) $('#currency').value = S.currency || 'USD';
   if ($('#lyr')) $('#lyr').innerHTML = yearListOpts().map(y => `<option value="${y}" ${+S.ledgerYear === y ? 'selected' : ''}>${y}</option>`).join('');
   if ($('#yhor')) { $('#yhor').innerHTML = [12, 24, 36, 60].map(n => { const years = n / 12; return `<option value="${n}">${years} ${t(years === 1 ? 'year_one' : 'year_many')}</option>`; }).join(''); $('#yhor').value = String(S.horizon || 36); }
   if ($('#yincg')) $('#yincg').value = S.incGrowth ?? 3;
@@ -161,7 +163,7 @@ function renderPlanHub(f, hr, lsumHtml) {
   const actsHtml = (S.actions || []).map((a, i) => `<li class="act-item ${a.done ? 'done' : ''}"><input type="checkbox" data-act-chk="${i}" ${a.done ? 'checked' : ''}><span>${esc(actionTitle(a))}</span><small>${a.ym ? mlabel(a.ym, 1) : ''}${num(a.amount) ? ' · ' + money(a.amount) : ''}</small><button class="x" data-del="actions.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></li>`).join('');
   el.innerHTML = `<div class="subcard"><h3>🎯 ${esc(t('p_sink_t'))}</h3><p class="hl">${esc(sinkMsg)}</p>
 <h3>✅ ${esc(t('p_tasks_t'))}</h3><small>${esc(t('p_tasks_d'))}</small><ul class="act-list">${actsHtml}</ul>
-<div class="act-add"><input id="nt-title" type="text" placeholder="${esc(t('p_task_ph'))}"><select id="nt-ym">${monthOpts().map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select><input id="nt-amt" type="number" min="0" placeholder="${esc(t('y_amt'))}"><button class="btn" id="add-task">${esc(t('p_add_task'))}</button></div></div>
+<div class="act-add"><input id="nt-title" type="text" placeholder="${esc(t('p_task_ph', { amount: money(100) }))}"><select id="nt-ym">${monthOpts().map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select><input id="nt-amt" type="number" min="0" placeholder="${esc(t('y_amt'))}"><button class="btn" id="add-task">${esc(t('p_add_task'))}</button></div></div>
 <div class="subcard"><div class="hd"><h3>📅 ${esc(t('p_yr_t'))}</h3><div class="acts"><button class="ghost" id="p-fill">${esc(t('y_fill'))}</button><button class="ghost" data-tab="year">${esc(t('p_open_yr'))}</button></div></div><small>${esc(t('p_yr_d'))}</small><p class="hl">${lsumHtml}</p>${multiYearTable(f.rollup)}</div>`;
 }
 
@@ -169,6 +171,7 @@ function renderPlanHub(f, hr, lsumHtml) {
 function renderAll() {
   const p = P(), b = Engine.budget(S.cats, p.income), L = Engine.levels(LP()), cur = L.indexOf(false), k = Engine.kpis(p), sc = Engine.score(p, b, S.quiz), gs = goalsCalc(p), f = fc(), sur = k.surplus;
   $('#etot').textContent = money(p.expenses);
+  $('#restore-demo').hidden = !S.demoMode; $('#demo-notice').hidden = !S.demoMode;
   if ($('#quiz-banner')) {
     $('#quiz-banner').className = 'q-banner' + (sc.quizDone ? ' ok' : '');
     $('#quiz-banner').innerHTML = `<span>${esc(sc.quizDone ? t('q_done_msg') : t('q_cta'))}</span>`;
@@ -192,21 +195,28 @@ function renderAll() {
   // numbers
   $('#bchart').innerHTML = `<h2>${t('b_h')}</h2><canvas id="bc1" width="800" height="${Math.max(300, catParts().length * 26 + 70)}"></canvas><canvas id="bc2" width="800" height="190"></canvas><small>${t('bar_note')}</small>`;
   if (catParts().length) Charts.donut($('#bc1'), catParts(), money); drawBars3($('#bc2'), b);
+  const labelChart = (id, label) => { const cv = $('#' + id); if (cv) { cv.setAttribute('role', 'img'); cv.setAttribute('aria-label', label); } };
+  labelChart('bc1', t('chart_budget', { items: catParts().map(x => `${x.name}: ${money(x.v)}`).join(', ') || t('chart_empty') }));
+  labelChart('bc2', t('chart_allocation', { needs: b.pct.needs.toFixed(0), wants: b.pct.wants.toFixed(0), save: b.pct.save.toFixed(0) }));
   const dt = Engine.debtTotal(p.debts); $('#debtsim').hidden = dt <= 0;
   if (dt > 0) { const ex = S.extra === '' ? Math.round(Math.max(0, sur)) : num(S.extra), rs = ['snowball', 'avalanche'].map(m => [m, Engine.payoff(p.debts, ex, m)]);
     $('#dres').innerHTML = rs.map(([m, r]) => `<div><h3>${t(m)}</h3><p>${r.ok ? t('res', { m: r.months, i: money(r.interest) }) : t('never')}</p></div>`).join('');
-    Charts.line($('#dc'), [{ name: t('snowball'), color: '#4aa3ff', d: rs[0][1].series }, { name: t('avalanche'), color: '#ffffff', d: rs[1][1].series }], short); }
+    Charts.line($('#dc'), [{ name: t('snowball'), color: '#4aa3ff', d: rs[0][1].series }, { name: t('avalanche'), color: '#ffffff', d: rs[1][1].series }], short); labelChart('dc', t('chart_debt', { snowball: rs[0][1].ok ? rs[0][1].months : t('never'), avalanche: rs[1][1].ok ? rs[1][1].months : t('never') })); }
   // goals
   $$('.gres').forEach(el => { const g = gs[+el.dataset.gi]; if (!g) return;
     el.innerHTML = `<div class="meter"><i style="width:${g.pct}%"></i></div><p><span class="pill ${g.status}">${t('g_' + g.status)}</span> ${money(g.current)} / ${money(g.target)} · ${g.months} ${t('mo')}</p><p>${t('g_need')}: <b>${money(g.need)}</b> · ${t('g_plan')}: <b>${money(g.planned)}</b></p><p class="mu">${t('g_proj')}: ${t('scen_c')} ${money(g.proj.c)} · ${t('scen_b')} ${money(g.proj.b)} · ${t('scen_o')} ${money(g.proj.o)}</p>`; });
   drawGoalBars($('#gb'), gs);
+  labelChart('gb', t('chart_goal_gap', { items: gs.map(x => `${x.name}: ${money(x.current)} / ${money(x.target)}`).join(', ') || t('chart_empty') }));
   const g = gs[gsel]; if (g) { const m = Math.min(g.months, 360); Charts.line($('#gc'), [{ name: t('scen_c'), color: '#9db0d3', d: Engine.path(g.current, g.planned, m, 3) }, { name: t('scen_b'), color: '#4aa3ff', d: Engine.path(g.current, g.planned, m, 6) }, { name: t('scen_o'), color: '#ffffff', d: Engine.path(g.current, g.planned, m, 9) }, { name: t('g_target'), color: '#da291c', dash: [8, 6], d: Array(m + 1).fill(g.target) }], short); }
   else $('#gc').getContext('2d').clearRect(0, 0, 800, 320);
+  labelChart('gc', g ? t('chart_goal_scenario', { name: g.name, target: money(g.target), current: money(g.current), planned: money(g.planned) }) : t('chart_empty'));
   const rm = S.ret.m === '' ? Math.round(Math.max(0, sur) / 2 / 10) * 10 : +S.ret.m, ry = +S.ret.y, rr = +S.ret.r, rs2 = Engine.compound(p.invested, rm, rr, ry), re = rs2[rs2.length - 1];
   $('#yv').textContent = ry; $('#rv').textContent = rr; $('#mv').textContent = money(rm); $('#retfin').textContent = t('final', { y: ry, v: money(re.v), c: money(re.c) });
   Charts.line($('#rc'), [{ name: t('ch_val'), color: '#4aa3ff', d: rs2.map(x => x.v) }, { name: t('ch_con'), color: '#9db0d3', d: rs2.map(x => x.c) }], short);
+  labelChart('rc', t('chart_retirement', { years: ry, value: money(re.v), contributed: money(re.c) }));
   // year & action plan hub
   Charts.year($('#yc'), yrows(f), short, yearNames());
+  labelChart('yc', t('chart_forecast', { months: S.horizon, income: money(f.inc), expenses: money(f.exp), low: money(f.low.balance), month: mlabel(f.low.ym, 1) }));
   const hr = hrows(), hh = hr.filter(r => r.has), avg = (a, key) => a.length ? a.reduce((s, r) => s + r[key], 0) / a.length : 0;
   const hInc = hr.reduce((s, r) => s + r.income, 0), hExp = hr.reduce((s, r) => s + r.expenses, 0);
   $$('[data-hnet]').forEach(el => { const h = S.hist[el.dataset.hnet]; const has = h && (h.income !== '' && h.income != null || h.expenses !== '' && h.expenses != null); const net = num(h?.income) - num(h?.expenses); el.textContent = has ? money(net) : '—'; el.style.color = !has ? 'var(--mu)' : net < 0 ? '#ff7a6e' : '#9fd0ff'; });
@@ -216,6 +226,7 @@ function renderAll() {
   $('#ysum').innerHTML = `<p class="hl">${t('y_sum', { i: money(f.inc), e: money(f.exp), n: money(f.inc - f.exp) })} ${t('y_low', { v: money(f.low.balance), m: mlabel(f.low.ym, 1) })}${f.deficits ? ' ' + t('y_def', { n: f.deficits }) : ''}${sk.totalExp > 0 ? '<br>' + esc(t('p_sink_d', { tot: money(sk.totalExp), m: +S.horizon || 36, avg: money(sk.avgMonthly), pk: money(sk.peakMonthly) })) : ''}${hh.length ? '<br>' + t('y_cmp', { h: money(avg(hh, 'expenses')), f: money(f.exp / (+S.horizon || 12)) }) : ''}</p>`;
   if ($('#ymulti')) $('#ymulti').innerHTML = multiYearTable(f.rollup);
   $('#hc').hidden = !hh.length; if (hh.length) Charts.year($('#hc'), hr, short, yearNames());
+  labelChart('hc', t('chart_ledger', { year: S.ledgerYear, months: hh.length, income: money(hInc), expenses: money(hExp) }));
   renderPlanHub(f, hr, lsumHtml);
   if (tab === 'report') buildReport();
   persist();
@@ -253,8 +264,9 @@ async function tour() {
   touring = false; $('#tour').textContent = t('tour');
 }
 function demo() {
+  if (!S.demoMode) { try { localStorage.setItem(DEMO_BACKUP_KEY, JSON.stringify(S)); } catch {} }
   const n = nowYM(), a = k => Engine.addMonths(n, k), yr = curYear();
-  S = { ...fresh(), income: 2200, savings: 900, invested: 300, quiz: { save: '50', run: '50', debt: '50', bal: '100', inv: '50' }, quizOpen: false, ledgerYear: yr, horizon: 36, incGrowth: 3, inflation: 3,
+  S = { ...fresh(), currency: S.currency || 'USD', demoMode: true, income: 2200, savings: 900, invested: 300, quiz: { save: '50', run: '50', debt: '50', bal: '100', inv: '50' }, quizOpen: false, ledgerYear: yr, horizon: 36, incGrowth: 3, inflation: 3,
     debts: [{ name: t('dd1'), balance: 1800, rate: 28, min: 60 }, { name: t('dd2'), balance: 600, rate: 12, min: 35 }],
     cats: mk([['housing', 520, 'need'], ['food', 380, 'need'], ['transport', 160, 'need'], ['utilities', 130, 'need'], ['health', 60, 'need'], ['fun', 150, 'want'], ['shopping', 110, 'want'], ['other', 90, 'want']]),
     goals: [{ name: t('dg1'), target: 7000, current: 900, date: a(18), monthly: '' }, { name: t('dg2'), target: 1200, current: 200, date: a(8), monthly: '' }, { name: t('dg3'), target: 15000, current: 0, date: a(60), monthly: 200 }],
@@ -277,6 +289,7 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.id === 'theme') { applyTheme(el.value); return; }
+  if (el.id === 'currency') { S.currency = el.value; renderAll(); return; }
   if (el.dataset.actChk !== undefined) { const idx = +el.dataset.actChk; if (S.actions[idx]) { S.actions[idx].done = el.checked; renderAll(); } }
 });
 document.addEventListener('click', e => {
@@ -298,7 +311,7 @@ document.addEventListener('click', e => {
   }
   else if (b.id === 'listen') say(nextText); else if (b.id === 'tour') tour(); else if (b.id === 'print') { buildReport(); window.print(); }
   else if (b.id === 'aisum' && window.genReportSummary) window.genReportSummary();
-  else if (b.id === 'demo') demo(); else if (b.id === 'reset') { if (confirm(t('reset_q'))) { S = fresh(); drawLists(); renderAll(); } }
+  else if (b.id === 'demo') demo(); else if (b.id === 'restore-demo') { try { const backup = localStorage.getItem(DEMO_BACKUP_KEY); S = backup ? normalizeState(JSON.parse(backup)) : fresh(); } catch { S = fresh(); } localStorage.removeItem(DEMO_BACKUP_KEY); drawLists(); renderAll(); } else if (b.id === 'reset') { if (confirm(t('reset_q'))) { localStorage.removeItem(DEMO_BACKUP_KEY); S = fresh(); drawLists(); renderAll(); } }
   else if (b.id === 'askplan') { $('#chat').hidden = false; ask(t('c1')); }
 });
 $('#lang').addEventListener('change', e => { lang = e.target.value; localStorage.setItem('lang', lang); if (canSpeak) speechSynthesis.cancel(); load(); });

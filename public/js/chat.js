@@ -7,8 +7,8 @@ function facts() {
   const p = P(), b = Engine.budget(S.cats, p.income), cur = Engine.levels(LP()).indexOf(false), sc = Engine.score(p, b, S.quiz), k = Engine.kpis(p), f = fc();
   const extra = S.extra === '' ? Math.round(Math.max(0, k.surplus)) : num(S.extra);
   const sn = Engine.payoff(p.debts, extra, 'snowball'), av = Engine.payoff(p.debts, extra, 'avalanche');
-  const hr = hrows(), hh = hr.filter(r => r.has);
-  return { levelIndex: cur, nextStep: t('l' + (cur + 1) + 't'), healthScore: sc.quizDone ? sc.total : null, quizCompleted: sc.quizDone, quizAnswers: S.quiz,
+  const hr = hrows(), hh = hr.filter(r => r.has), plan = Engine.actionPlan(p, goalsCalc(p)).map(step => ({ ...step, ...planCopy(step) }));
+  return { levelIndex: cur, nextStep: plan[0] ? `${plan[0].title}: ${plan[0].description}` : t('l' + (cur + 1) + 't'), actionPlan: plan, healthScore: sc.quizDone ? sc.total : null, quizCompleted: sc.quizDone, quizAnswers: S.quiz,
     scoreParts: Object.fromEntries(Object.entries(sc.parts).map(([a, v]) => [a, Math.round(v)])),
     income: p.income, expenses: p.expenses, monthlySurplus: k.surplus, savings: p.savings, invested: p.invested, debtTotal: Engine.debtTotal(p.debts), runwayMonths: +k.runway.toFixed(1),
     debts: S.debts.map(d => ({ name: d.name || t('debts'), balance: num(d.balance), rate: num(d.rate), min: num(d.min) })),
