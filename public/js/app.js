@@ -41,7 +41,33 @@ const mlabel = (ym, long) => {
 const COL = ['#84cc16', '#06b6d4', '#22c55e', '#38bdf8', '#a3e635', '#14b8a6', '#facc15', '#fb7185', '#a855f7', '#60a5fa'];
 const mk = a => a.map(([key, amount, type]) => ({ key, amount, type }));
 const curYear = () => new Date().getFullYear();
-const fresh = () => ({ income: 0, savings: 0, invested: 0, currency: 'USD', demoMode: false, extra: '', ret: { y: 30, r: 7, m: '' }, debts: [], goals: [], special: [], hist: {},
+const PF_SEL = {
+  sex: ["Masculino", "Femenino"],
+  area: ["rural", "urbano"],
+  education_level: ["ninguno", "primaria", "secundaria", "bachillerato", "tecnico", "universitario", "posgrado"],
+  household_type: ["unipersonal", "pareja", "nuclear", "extendido", "monoparental"],
+  marital_status: ["soltero", "casado", "union_libre", "divorciado", "separado", "viudo"],
+  languages_spoken: ["español", "español e inglés", "español y otro idioma"]
+};
+const PF_SLUG = { 'español': 'es', 'español e inglés': 'es_en', 'español y otro idioma': 'es_other' };
+const PF_MUNI = {
+  "Ahuachapán": ["Ahuachapán Centro", "Ahuachapán Norte", "Ahuachapán Sur"],
+  "Cabañas": ["Cabañas Este", "Cabañas Oeste"],
+  "Chalatenango": ["Chalatenango Centro", "Chalatenango Norte", "Chalatenango Sur"],
+  "Cuscatlán": ["Cuscatlán Norte", "Cuscatlán Sur"],
+  "La Libertad": ["La Libertad Centro", "La Libertad Costa", "La Libertad Este", "La Libertad Norte", "La Libertad Oeste", "La Libertad Sur"],
+  "La Paz": ["La Paz Centro", "La Paz Este", "La Paz Oeste"],
+  "La Unión": ["La Unión Norte", "La Unión Sur"],
+  "Morazán": ["Morazán Norte", "Morazán Sur"],
+  "San Miguel": ["San Miguel Centro", "San Miguel Norte", "San Miguel Oeste"],
+  "San Salvador": ["San Salvador Centro", "San Salvador Este", "San Salvador Norte", "San Salvador Oeste", "San Salvador Sur"],
+  "San Vicente": ["San Vicente Norte", "San Vicente Sur"],
+  "Santa Ana": ["Santa Ana Centro", "Santa Ana Este", "Santa Ana Norte", "Santa Ana Oeste"],
+  "Sonsonate": ["Sonsonate Centro", "Sonsonate Este", "Sonsonate Norte", "Sonsonate Oeste"],
+  "Usulután": ["Usulután Este", "Usulután Norte", "Usulután Oeste"]
+};
+const PF_EMPTY = () => ({ sex: '', age: '', area: '', education_level: '', household_type: '', marital_status: '', languages_spoken: '', department: '', municipality: '', occupation: '', career_goals_and_ambitions: '' });
+const fresh = () => ({ profile: PF_EMPTY(), income: 0, savings: 0, invested: 0, currency: 'USD', demoMode: false, extra: '', ret: { y: 30, r: 7, m: '' }, debts: [], goals: [], special: [], hist: {},
   quiz: { save: '', run: '', debt: '', bal: '', inv: '' }, quizOpen: true, ledgerYear: curYear(), horizon: 36, incGrowth: 3, inflation: 3,
   actions: [{ titleKey: 'task_ledger', title: '', ym: Engine.addMonths(nowYM(), 1), amount: 0, done: false },
     { titleKey: 'task_automate', title: '', ym: Engine.addMonths(nowYM(), 1), amount: 200, done: false },
@@ -51,7 +77,13 @@ function normalizeState(raw) {
   const d = fresh(); if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return d;
   const finite = (v, fallback = 0) => Number.isFinite(+v) && +v >= 0 ? +v : fallback;
   const list = (v, fallback, map) => Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && !Array.isArray(x)).map(map) : fallback;
-  const s = { ...d, ...raw, currency: ['USD','MXN','CAD','EUR','GBP'].includes(raw.currency) ? raw.currency : 'USD', demoMode: raw.demoMode === true, income: finite(raw.income), savings: finite(raw.savings), invested: finite(raw.invested),
+  const pr = raw.profile && typeof raw.profile === 'object' && !Array.isArray(raw.profile) ? raw.profile : {}, profile = PF_EMPTY();
+  for (const k of Object.keys(profile)) {
+    const v = typeof pr[k] === 'string' || typeof pr[k] === 'number' ? String(pr[k]) : '';
+    profile[k] = PF_SEL[k] ? (PF_SEL[k].includes(v) ? v : '') : k === 'age' ? (Number.isInteger(+v) && +v >= 0 && +v <= 120 && v !== '' ? v : '') : v.slice(0, 1000);
+  }
+  if (!(PF_MUNI[profile.department] || []).includes(profile.municipality)) profile.municipality = '';
+  const s = { ...d, ...raw, profile, currency: ['USD','MXN','CAD','EUR','GBP'].includes(raw.currency) ? raw.currency : 'USD', demoMode: raw.demoMode === true, income: finite(raw.income), savings: finite(raw.savings), invested: finite(raw.invested),
     quiz: { ...d.quiz, ...(raw.quiz && typeof raw.quiz === 'object' ? raw.quiz : {}) }, actions: list(raw.actions, d.actions, x => ({ title: String(x.title || ''), titleKey: Object.values(legacyTaskKeys).includes(x.titleKey) ? x.titleKey : '', ym: /^\d{4}-\d{2}$/.test(x.ym) ? x.ym : '', amount: finite(x.amount), done: !!x.done })),
     debts: list(raw.debts, d.debts, x => ({ name: String(x.name || ''), balance: finite(x.balance), rate: finite(x.rate), min: finite(x.min) })),
     cats: list(raw.cats, d.cats, x => ({ key: String(x.key || ''), name: String(x.name || ''), amount: finite(x.amount), type: ['need', 'want', 'save'].includes(x.type) ? x.type : 'want' })),
@@ -132,10 +164,60 @@ function drawQuiz() {
   $('#quiz-box').innerHTML = qk.map(k => `<div class="q-item"><p>${esc(t('q_' + k + '_q'))}</p>${sel('quiz.' + k, [['', t('q_pick')], ['0', t('q_' + k + '_0')], ['50', t('q_' + k + '_50')], ['100', t('q_' + k + '_100')]], t('sc_' + k))}</div>`).join('') +
     `<div class="acts"><button class="btn" id="quiz-done">${esc(t('q_close'))}</button></div>`;
 }
+function drawProfile() {
+  const box = $('#profile-box'); if (!box) return;
+  const o = f => [['', t('pf_pick')], ...PF_SEL[f].map(v => [v, t(`pf_o_${f}_${PF_SLUG[v] || v}`)])];
+  const dep = S.profile.department, munis = PF_MUNI[dep] || [];
+  box.innerHTML = `<div class="grid3">${sfld('profile.sex', o('sex'), t('pf_sex'))}${fld('profile.age', 'number', t('pf_age'))}${sfld('profile.area', o('area'), t('pf_area'))}${sfld('profile.education_level', o('education_level'), t('pf_education_level'))}${sfld('profile.household_type', o('household_type'), t('pf_household_type'))}${sfld('profile.marital_status', o('marital_status'), t('pf_marital_status'))}${sfld('profile.languages_spoken', o('languages_spoken'), t('pf_languages_spoken'))}` +
+    `${sfld('profile.department', [['', t('pf_pick')], ...Object.keys(PF_MUNI).map(d => [d, d])], t('pf_department'))}${sfld('profile.municipality', munis.length ? [['', t('pf_pick')], ...munis.map(m => [m, m])] : [['', t('pf_pick_muni')]], t('pf_municipality'))}</div>` +
+    `<label class="f"><span>${esc(t('pf_occupation'))}</span>${inp('profile.occupation', 'text', t('pf_occupation_ph'))}</label>` +
+    `<label class="f"><span>${esc(t('pf_career_goals_and_ambitions'))}</span><textarea data-b="profile.career_goals_and_ambitions" rows="3" maxlength="1000" placeholder="${esc(t('pf_goals_ph'))}" aria-label="${esc(t('pf_career_goals_and_ambitions'))}">${esc(S.profile.career_goals_and_ambitions)}</textarea></label>`;
+}
+// ---------- Special %: compare the survey profile with the Nemotron personas (server side) ----------
+let spResult = null, spAi = null, spRun = 0;
+const pfVal = (f, v) => PF_SEL[f] ? t(`pf_o_${f}_${PF_SLUG[v] || v}`) : v;
+const uniq = a => [...new Set(a)], joinList = a => a.join(', ');
+const range = a => [Math.min(...a), Math.max(...a)];
+function localSummaries(r) {
+  const top = r.top, bot = r.bottom, [sa, sb] = range(top.map(x => x.score)), [ta, tb] = range(top.map(x => x.age)), [ba, bb] = range(bot.map(x => x.age));
+  const shared = ['sex', 'area', 'education_level', 'household_type', 'marital_status', 'languages_spoken', 'department', 'municipality'].filter(k => r.profile[k] !== '' && top.every(x => x[k] === r.profile[k]));
+  const goal = String(top[0].career_goals_and_ambitions || '').slice(0, 170).trim();
+  return {
+    similar: [shared.length ? t('sp_l_t1', { fields: joinList(shared.map(k => t('pf_' + k).toLowerCase())), a: sa, b: sb }) : t('sp_l_t1b', { a: sa, b: sb }), t('sp_l_t2', { a: ta, b: tb, occ: joinList(uniq(top.map(x => x.occupation)).slice(0, 3)) }), goal ? t('sp_l_t3', { goal: goal + (goal.length >= 170 ? '…' : '') }) : ''].filter(Boolean),
+    different: [t('sp_l_b1', { sexes: joinList(uniq(bot.map(x => pfVal('sex', x.sex)))), a: ba, b: bb, areas: joinList(uniq(bot.map(x => pfVal('area', x.area)))) }), t('sp_l_b2', { depts: joinList(uniq(bot.map(x => x.department))), edus: joinList(uniq(bot.map(x => pfVal('education_level', x.education_level)))) }), t('sp_l_b3', { occ: joinList(uniq(bot.map(x => x.occupation)).slice(0, 3)) })]
+  };
+}
+const personaCard = p => `<li class="pcard"><div class="pc-h"><b>${esc(t('sp_sim_pct', { p: p.score }))}</b><span>${esc(pfVal('sex', p.sex))}, ${esc(t('sp_years', { n: p.age }))} · ${esc(pfVal('area', p.area))} · ${esc(pfVal('education_level', p.education_level))}</span></div><div class="mu">${esc(pfVal('household_type', p.household_type))} · ${esc(pfVal('marital_status', p.marital_status))} · ${esc(p.municipality)}</div><div>${esc(p.occupation)}</div><small>${esc(String(p.career_goals_and_ambitions).slice(0, 240))}${p.career_goals_and_ambitions.length > 240 ? '…' : ''}</small></li>`;
+function drawSpecial() {
+  const box = $('#sp-result'); if (!box) return;
+  if (!spResult) { box.innerHTML = ''; return; }
+  const r = spResult, loc = localSummaries(r), ai = spAi && spAi.lang === lang ? spAi : null;
+  const sSim = ai?.similar ? [ai.similar] : loc.similar, sDif = ai?.different?.length ? ai.different : loc.different, src = t(ai?.similar || ai?.different?.length ? 'sp_src_ai' : 'sp_src_local');
+  box.innerHTML = `<article class="card glow sp-hero"><h2>${esc(t('sp_head'))}</h2><div class="sp-big"><b>${esc(r.similarPct)}%</b><span>${esc(t('sp_sim', { n: r.similarCount.toLocaleString(lang), total: r.total.toLocaleString(lang) }))}</span></div><p class="hl">${esc(t('sp_special', { pct: r.specialPct }))}</p><p>${esc(t('sp_exact', { n: r.exactCount.toLocaleString(lang), pct: r.exactPct }))}</p><small>${esc(t('sp_rule', { t: r.threshold }))}</small></article>` +
+    `<div class="two"><article class="card"><h2>${esc(t('sp_top_t'))}</h2><ol class="plist">${r.top.map(personaCard).join('')}</ol><h3>${esc(t('sp_sum_top'))}</h3>${sSim.map(x => `<p>${esc(x)}</p>`).join('')}<small class="mu">${esc(src)}</small></article>` +
+    `<article class="card"><h2>${esc(t('sp_bot_t'))}</h2><ol class="plist">${r.bottom.map(personaCard).join('')}</ol><h3>${esc(t('sp_sum_bot'))}</h3>${sDif.map(x => `<p class="sp-line">${esc(x)}</p>`).join('')}<small class="mu">${esc(src)}</small></article></div>`;
+}
+async function submitProfile() {
+  const msg = $('#sp-msg'), btn = $('#pf-submit'), run = ++spRun, body = { profile: S.profile, lang };
+  const answered = ['sex', 'area', 'education_level', 'household_type', 'marital_status', 'languages_spoken', 'department', 'municipality', 'age'].filter(k => S.profile[k] !== '').length;
+  if (answered < 5) { msg.textContent = t('sp_need', { n: 5 }); return; }
+  btn.disabled = true; msg.textContent = t('sp_calc'); spResult = null; spAi = null; drawSpecial();
+  const post = async (url) => { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); return { status: r.status, data: await r.json().catch(() => ({})) }; };
+  try {
+    const res = await post('/api/special');
+    if (run !== spRun) return;
+    if (res.status === 503) { msg.textContent = t('sp_err_ds'); return; }
+    if (res.status === 400 && res.data.error === 'not_enough_answers') { msg.textContent = t('sp_need', { n: res.data.min }); return; }
+    if (!res.data.ok) { msg.textContent = t('sp_err'); return; }
+    spResult = res.data; msg.textContent = ''; drawSpecial();
+    post('/api/special-summary').then(sm => { if (run === spRun && sm.data.ok && (sm.data.similar || sm.data.different)) { spAi = { lang: body.lang, similar: sm.data.similar, different: sm.data.different }; drawSpecial(); } }).catch(() => {});
+  } catch { if (run === spRun) msg.textContent = t('sp_err'); }
+  finally { btn.disabled = false; }
+}
 function drawLists() {
   $$('#income,#savings,#invested').forEach(e => e.value = S[e.id]);
   const p = P(), sur = Math.max(0, p.income - p.expenses); $('#extra').value = S.extra; $('#extra').placeholder = money(sur);
-  drawQuiz();
+  drawQuiz(); drawProfile(); drawSpecial();
   $('#debts').innerHTML = S.debts.map((d, i) => `<div class="row4">${['name', 'balance', 'rate', 'min'].map(k => inp(`debts.${i}.${k}`, k === 'name' ? 'text' : 'number', t('d_' + k))).join('')}<button class="x" data-del="debts.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div>`).join('');
   $('#cats').innerHTML = S.cats.map((c, i) => `<div class="row3">${inp(`cats.${i}.name`, 'text', t('d_name'), catName(c))}${inp(`cats.${i}.amount`, 'number', t('cat_amt'))}${sel(`cats.${i}.type`, [['need', t('need')], ['want', t('want')], ['save', t('save')]], t('cat_type'))}<button class="x" data-del="cats.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div>`).join('');
   $('#goals').innerHTML = S.goals.length ? S.goals.map((g, i) => `<div class="goal"><div class="gin">${fld(`goals.${i}.name`, 'text', t('g_name'))}${fld(`goals.${i}.target`, 'number', t('g_target'))}${fld(`goals.${i}.current`, 'number', t('g_have'))}${sfld(`goals.${i}.date`, dateOpts(), t('g_date'))}${fld(`goals.${i}.monthly`, 'number', t('g_monthly'))}<button class="x" data-del="goals.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div><div class="gres" data-gi="${i}"></div></div>`).join('') : `<p class="mu">${t('g_none')}</p>`;
@@ -304,6 +386,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('change', e => {
   const el = e.target;
+  if (el.dataset.b === 'profile.department') { S.profile.municipality = ''; drawProfile(); persist(); return; }
   if (el.id === 'theme') { applyTheme(el.value); renderAll(); return; }
   if (el.id === 'currency') { S.currency = el.value; renderAll(); return; }
   if (el.dataset.actChk !== undefined) { const idx = +el.dataset.actChk; if (S.actions[idx]) { S.actions[idx].done = el.checked; renderAll(); } }
@@ -313,6 +396,7 @@ document.addEventListener('click', e => {
   if (d.tab) go(d.tab); else if (d.go) go(d.go);
   else if (d.del) { const [k, i] = d.del.split('.'); S[k].splice(+i, 1); drawLists(); renderAll(); }
   else if (d.add) { S[d.add].push(ADD[d.add]()); drawLists(); renderAll(); }
+  else if (b.id === 'pf-submit') submitProfile();
   else if (b.id === 'quiz-btn') { S.quizOpen = !S.quizOpen; drawQuiz(); persist(); }
   else if (b.id === 'quiz-done') {
     const score = Engine.score(P(), Engine.budget(S.cats, P().income), S.quiz);

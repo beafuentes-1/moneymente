@@ -1,6 +1,10 @@
 // Static server + /api/chat + /api/status: keyword retrieval over knowledge/*.md, answered by Nemotron on a local llama-server (no API key).
 const http = require('http'), fs = require('fs'), path = require('path');
+const special = require('./lib/special');
 const root = path.join(__dirname, 'public');
+const PERSONAS_CSV = process.env.PERSONAS_CSV || path.join(__dirname, 'data', 'nemotron_personas_sv_sample.csv');
+let dataset = null;
+function personas() { if (!dataset) dataset = special.loadDataset(PERSONAS_CSV); return dataset; }
 const PORT = Number.isInteger(+process.env.PORT) && +process.env.PORT > 0 ? +process.env.PORT : 3000;
 const MAX_BODY = 20000;
 const LLAMA_URLS = process.env.LLAMA_URL ? [process.env.LLAMA_URL] : ['http://127.0.0.1:8080/v1/chat/completions', 'http://127.0.0.1:9931/v1/chat/completions'];
@@ -114,6 +118,25 @@ async function streamChat(b, res) {
   }
   res.end();
 }
+const personaLine = p => `${p.sex}, ${p.age}, ${p.area}, ${p.education_level}, ${p.household_type}, ${p.marital_status}, ${p.municipality}, ${p.occupation}. ${String(p.career_goals_and_ambitions).slice(0, 170)}`;
+async function askModel(system, user) {
+  const url = await resolveLlama(); if (!url) return null;
+  try {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(45000), body: JSON.stringify({ messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: 380, temperature: 0.3, cache_prompt: true, chat_template_kwargs: { enable_thinking: false } }) });
+    const msg = (await r.json()).choices?.[0]?.message || {};
+    return parseOutput(msg.content, msg.reasoning_content, false).reply || null;
+  } catch { return null; }
+}
+async function specialSummaries(res, lang) {
+  const L = lang === 'es' ? 'Spanish' : 'English', me = res.profile;
+  const sys = `You compare a user's survey profile with synthetic personas from El Salvador (NVIDIA Nemotron-Personas). Write in ${L}. Use only the data provided; do not invent facts. Plain text, no markdown, no lists with bullets.`;
+  const you = `User: ${personaLine({ ...me, municipality: me.municipality || me.department })}`;
+  const [similar, different] = await Promise.all([
+    askModel(sys, `${you}\n\nThe 5 personas MOST similar to the user:\n${res.top.map(personaLine).join('\n')}\n\nSummarize in 2-3 sentences what these profiles have in common with the user and what they aim for.`),
+    askModel(sys, `${you}\n\nThe 5 personas LEAST similar to the user:\n${res.bottom.map(personaLine).join('\n')}\n\nSummarize them in exactly 3 short lines (one per line, no numbering): who they are, where they live and their education, and what they do or aim for.`)
+  ]);
+  return { similar, different: different ? different.split('\n').map(x => x.trim()).filter(Boolean).slice(0, 3) : null };
+}
 async function status() {
   const u = await resolveLlama();
   return { online: !!u, url: u, model: 'Nemotron 3 Nano 4B' };
@@ -138,6 +161,20 @@ http.createServer(async (q, r) => {
       } else b.facts = {};
       if (b.stream) return streamChat(b, r);
       return sendJson(200, await chat(b));
+    });
+  }
+  if (q.method === 'POST' && (q.url === '/api/special' || q.url === '/api/special-summary')) {
+    let d = '', tooLarge = false;
+    q.on('data', c => { d += c; if (Buffer.byteLength(d) > MAX_BODY) { tooLarge = true; sendJson(413, { error: 'request_too_large' }); q.destroy(); } });
+    return q.on('end', async () => {
+      if (tooLarge || r.writableEnded) return;
+      let b; try { b = JSON.parse(d); } catch { return sendJson(400, { error: 'invalid_json' }); }
+      if (!b || Array.isArray(b) || typeof b !== 'object') return sendJson(400, { error: 'invalid_json' });
+      let ds; try { ds = personas(); } catch { return sendJson(503, { error: 'dataset_missing' }); }
+      const result = special.analyze(ds, b.profile);
+      if (!result.ok) return sendJson(400, result);
+      if (q.url === '/api/special') return sendJson(200, result);
+      return sendJson(200, { ok: true, ...(await specialSummaries(result, b.lang === 'es' ? 'es' : 'en')) });
     });
   }
   let decoded; try { decoded = decodeURIComponent((q.url || '/').split('?')[0]); } catch { r.writeHead(400); return r.end('Bad path'); }

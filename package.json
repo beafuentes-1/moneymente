@@ -4,7 +4,7 @@
   "description": "AI financial advisor, bilingual, local Nemotron bot, no API key",
   "scripts": {
     "start": "node server.js",
-    "test": "node tests/engine.test.js && node tests/server.test.js && node tests/i18n.test.js && node tests/browser.test.js"
+    "test": "node tests/engine.test.js && node tests/special.test.js && node tests/server.test.js && node tests/i18n.test.js && node tests/browser.test.js"
   },
   "license": "MIT"
 }

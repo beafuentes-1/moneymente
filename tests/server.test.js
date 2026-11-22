@@ -9,7 +9,7 @@ const llama = http.createServer((req, res) => {
   req.resume();
   req.on('end', () => { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ choices: [{ message: { content: 'Stub answer' } }] })); });
 });
-const app = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT: String(port), LLAMA_URL: `http://127.0.0.1:${llamaPort}/chat` }, stdio: 'ignore' });
+const app = spawn(process.execPath, [path.join(__dirname, '..', 'server.js')], { env: { ...process.env, PORT: String(port), PERSONAS_CSV: path.join(__dirname, 'fixtures', 'personas.csv'), LLAMA_URL: `http://127.0.0.1:${llamaPort}/chat` }, stdio: 'ignore' });
 const listenLlama = () => new Promise(resolve => llama.listen(llamaPort, '127.0.0.1', resolve));
 const request = (method, path, body) => new Promise((resolve, reject) => {
   const req = http.request({ hostname: '127.0.0.1', port, method, path, headers: body === undefined ? {} : { 'Content-Type': 'application/json' } }, res => {
@@ -30,6 +30,12 @@ const waitReady = async () => {
     assert.equal((await request('POST', '/api/chat', JSON.stringify({ message: 'hello', history: [{ role: 'system', content: 'bad' }] }))).status, 200);
     const answer = await request('POST', '/api/chat', JSON.stringify({ message: 'hello', history: [{ role: 'system', content: 'bad' }] }));
     assert.equal(JSON.parse(answer.data).reply, 'Stub answer');
+    const me = { sex: 'Masculino', age: 30, area: 'urbano', education_level: 'bachillerato', household_type: 'nuclear' };
+    const sp = await request('POST', '/api/special', JSON.stringify({ profile: me, lang: 'es' }));
+    assert.equal(sp.status, 200); assert.equal(JSON.parse(sp.data).total, 6); assert.equal(JSON.parse(sp.data).top.length, 5);
+    assert.equal((await request('POST', '/api/special', JSON.stringify({ profile: { sex: 'Masculino' } }))).status, 400);
+    const sum = JSON.parse((await request('POST', '/api/special-summary', JSON.stringify({ profile: me, lang: 'es' }))).data);
+    assert.equal(sum.ok, true); assert.equal(sum.similar, 'Stub answer');
     assert.equal((await request('GET', '/')).status, 200);
     assert.equal((await request('GET', '/..moneymente-secret')).status, 404);
     let tooLarge;
