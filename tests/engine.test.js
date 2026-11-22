@@ -5,7 +5,7 @@ assert.strictEqual(E.compound(0, 100, 0, 1)[1].v, 1200);
 assert.strictEqual(E.months(0, 3000, 500), 6);
 assert.strictEqual(E.months(0, 3000, 0), Infinity);
 const p = { income: 1000, expenses: 800, savings: 0, invested: 0, goal: 0, debts: [] };
-assert.deepStrictEqual(E.levels(p).slice(0, 3), [true, false, false]);
+assert.deepStrictEqual(E.levels(p), [true]);
 console.log('engine tests passed');
 assert.strictEqual(E.payoff([{ balance: 1200, rate: 0, min: 100 }], 0, 'snowball').series.length, 13);
 assert.deepStrictEqual(E.kpis({ ...p, savings: 1600 }), { surplus: 200, rate: 20, runway: 2, net: 1600 });
@@ -20,3 +20,25 @@ assert.ok(sc.total > 0 && sc.total <= 100 && sc.parts.run === 100);
 const fcs = E.forecast({ income: 1000, savings: 100 }, { total: 800 }, [{ ym: '2026-12', kind: 'exp', amount: 500 }], '2026-11', 3);
 assert.deepStrictEqual(fcs.map(r => r.balance), [-200, 0, 200]);
 console.log('advisor tests passed');
+const plan = E.actionPlan({ ...p, income: 1000, expenses: 800, savings: 0, debts: [{ balance: 1200, rate: 24, min: 50 }], invested: 0 }, b, []);
+assert.equal(plan[0].id, 'starter'); assert.equal(plan[0].status, 'now'); assert.equal(plan[1].id, 'debt'); assert.equal(plan[1].status, 'next');
+const deficitPlan = E.actionPlan({ ...p, income: 500, expenses: 800, savings: 0, debts: [], invested: 0 }, b, []);
+assert.equal(deficitPlan[0].id, 'deficit');
+console.log('action-plan tests passed');
+
+// Persisted state normalization used by the browser startup path.
+const vm = require('node:vm'), fs = require('node:fs');
+const appSource = fs.readFileSync(require.resolve('../public/js/app.js'), 'utf8');
+const sandbox = { window: { scrollTo() {} }, navigator: { language: 'en' }, localStorage: { getItem: () => JSON.stringify({ income: 'bad', cats: [null, { amount: -30 }], debts: {}, goals: [{ target: 'x' }], hist: [] }), setItem() {} },
+  document: { querySelector: () => ({ addEventListener() {}, setAttribute() {}, value: '' }), querySelectorAll: () => [], addEventListener() {}, documentElement: { lang: '', dataset: {} } },
+  fetch: async () => ({ json: async () => ({}) }), speechSynthesis: { cancel() {} }, confirm: () => true, console, Engine: E,
+  Charts: { bars() {}, donut() {}, line() {}, year() {} },
+  Intl, Date, Math, JSON, Object, Array, String, Number, Set, Promise };
+vm.runInNewContext(`${appSource}\nthis.__normalized = S;`, sandbox);
+assert.equal(sandbox.__normalized.income, 0);
+assert.equal(sandbox.__normalized.cats.length, 1);
+assert.equal(sandbox.__normalized.cats[0].amount, 0);
+assert.equal(Array.isArray(sandbox.__normalized.debts), true);
+assert.equal(sandbox.__normalized.goals[0].target, '');
+assert.deepEqual(sandbox.__normalized.hist, {});
+console.log('persisted-state tests passed');

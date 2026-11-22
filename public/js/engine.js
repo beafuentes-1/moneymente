@@ -44,12 +44,21 @@
   E.monthsBetween = (a, b) => { const [y1, m1] = a.split('-').map(Number), [y2, m2] = b.split('-').map(Number); return (y2 - y1) * 12 + (m2 - m1); };
   E.forecast = (p, b, special, start, n = 12) => { let bal = p.savings; return Array.from({ length: n }, (_, i) => { const ym = E.addMonths(start, i + 1), sp = special.filter(s => s.ym === ym), add = k => sp.filter(s => (k === 'inc') === (s.kind === 'inc')).reduce((a, s) => a + (+s.amount || 0), 0);
     const income = p.income + add('inc'), expenses = b.total + add('exp'); bal += income - expenses; return { ym, income, expenses, net: income - expenses, balance: bal }; }); };
-  // 7 steps; each unlocks only when all previous ones are done.
-  E.levels = p => {
-    const starter = Math.min(1000, p.expenses || 1000), full = p.expenses * 3;
-    const done = [p.income > 0 && p.expenses > 0, p.savings >= starter, E.debtTotal(p.debts) <= 0,
-      p.savings >= full, !!p.goalsOk, p.invested > 0, false];
-    let ok = true; return done.map(x => (ok = ok && x));
+  E.actionPlan = (p, b, goals = []) => {
+    const plan = [], monthly = p.income - p.expenses, debt = E.debtTotal(p.debts), starter = Math.min(1000, p.expenses || 1000), reserve = p.expenses * 3;
+    if (p.income <= 0 || p.expenses <= 0) plan.push({ id: 'numbers', status: 'now', amount: null });
+    if (monthly < 0) plan.push({ id: 'deficit', status: 'now', amount: -monthly });
+    if (p.savings < starter) plan.push({ id: 'starter', status: monthly < 0 ? 'next' : 'now', amount: Math.max(0, starter - p.savings) });
+    const costly = p.debts.filter(d => +d.balance > 0).sort((a, b) => (+b.rate || 0) - (+a.rate || 0));
+    if (costly.length) plan.push({ id: 'debt', status: p.savings < starter ? 'next' : 'now', amount: debt, rate: +costly[0].rate || 0 });
+    if (p.savings < reserve) plan.push({ id: 'reserve', status: costly.length ? 'next' : 'now', amount: Math.max(0, reserve - p.savings) });
+    const behind = goals.filter(g => g.status !== 'on');
+    if (behind.length) plan.push({ id: 'goals', status: plan.some(x => x.status === 'now') ? 'next' : 'now', amount: behind[0].need, name: behind[0].name });
+    if (monthly > 0 && !costly.length && p.savings >= reserve && p.invested <= 0) plan.push({ id: 'invest', status: 'now', amount: monthly });
+    if (!plan.length) plan.push({ id: 'maintain', status: 'now', amount: monthly });
+    return plan.map((step, i) => ({ ...step, status: i === 0 ? 'now' : 'next' }));
   };
+  // Kept for legacy callers; unlike the former fabricated level sequence, this only reports the real initial data step.
+  E.levels = p => [p.income > 0 && p.expenses > 0];
   if (typeof module !== 'undefined') module.exports = E; else root.Engine = E;
 })(this);

@@ -1,8 +1,9 @@
 // Tiny canvas charts (no libraries). Charts.light = true draws on white paper for the printable report.
 const Charts = {
   light: false,
-  k() { return this.light ? { grid: '#d5dcea', mu: '#44557a', trk: '#e6ebf5', w: '#004170' } : { grid: 'rgba(255,255,255,.1)', mu: '#9aaccd', trk: 'rgba(255,255,255,.1)', w: '#ffffff' }; },
-  col(c) { return c === '#ffffff' ? this.k().w : c; },
+  k() { if (this.light) return { grid: '#e5e7eb', mu: '#424b57', trk: '#e5e7eb', w: '#101c2c', gold: '#8a672b', success: '#24734d', text: '#101c2c' };
+    const css = getComputedStyle(document.documentElement); return { grid: css.getPropertyValue('--border-color').trim(), mu: css.getPropertyValue('--text-secondary').trim(), trk: css.getPropertyValue('--border-color').trim(), w: css.getPropertyValue('--text-primary').trim(), gold: css.getPropertyValue('--accent-gold').trim(), success: css.getPropertyValue('--success').trim(), text: css.getPropertyValue('--text-primary').trim() }; },
+  col(c) { if (c.startsWith('var(')) return getComputedStyle(document.documentElement).getPropertyValue(c.slice(4, -1)).trim(); return c === '#ffffff' ? this.k().w : c === '#da291c' ? this.k().gold : c === '#4aa3ff' ? this.k().success : c; },
   line(cv, series, fmt) {
     const k = this.k(), c = cv.getContext('2d'), W = cv.width, H = cv.height, P = 62, n = Math.max(...series.map(s => s.d.length)), max = Math.max(...series.flatMap(s => s.d), 1);
     c.clearRect(0, 0, W, H); c.font = '14px ui-monospace,monospace'; c.lineWidth = 1;
@@ -29,8 +30,8 @@ const Charts = {
     const vals = rows.flatMap(r => [r.income, r.expenses, ...(hasB ? [r.balance] : [])]), max = Math.max(...vals, 1), min = Math.min(0, ...vals), span = max - min, Y = v => 12 + (H - 56) * (1 - (v - min) / span), bw = (W - P - 6) / n;
     c.clearRect(0, 0, W, H); c.font = '13px ui-monospace,monospace'; c.lineWidth = 1;
     for (let i = 0; i <= 4; i++) { const v = max - span * i / 4, y = Y(v); c.strokeStyle = k.grid; c.beginPath(); c.moveTo(P, y); c.lineTo(W - 6, y); c.stroke(); c.fillStyle = k.mu; c.fillText(fmt(v), 2, y + 4); }
-    rows.forEach((r, i) => { const x = P + i * bw; [[r.income, this.col('#ffffff')], [r.expenses, '#da291c']].forEach(([v, col], j) => { c.fillStyle = col; const y = Y(Math.max(v, 0)); c.fillRect(x + bw * .12 + j * bw * .38, y, bw * .34, Y(0) - y); }); c.fillStyle = k.mu; c.fillText(r.label, x + 2, H - 24); });
-    if (hasB) { c.beginPath(); rows.forEach((r, i) => { const x = P + i * bw + bw / 2, y = Y(r.balance); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.strokeStyle = '#4aa3ff'; c.lineWidth = 3; c.stroke(); }
-    [[names[0], this.col('#ffffff')], [names[1], '#da291c'], ...(hasB ? [[names[2], '#4aa3ff']] : [])].forEach(([nm, col], i) => { c.fillStyle = col; c.fillText('■ ' + nm, P + i * 150, H - 6); });
+    rows.forEach((r, i) => { const x = P + i * bw; [[r.income, k.success], [r.expenses, k.gold]].forEach(([v, col], j) => { c.fillStyle = col; const y = Y(Math.max(v, 0)); c.fillRect(x + bw * .12 + j * bw * .38, y, bw * .34, Y(0) - y); }); c.fillStyle = k.mu; c.fillText(r.label, x + 2, H - 24); });
+    if (hasB) { c.beginPath(); rows.forEach((r, i) => { const x = P + i * bw + bw / 2, y = Y(r.balance); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.strokeStyle = k.gold; c.lineWidth = 3; c.stroke(); }
+    [[names[0], k.success], [names[1], k.gold], ...(hasB ? [[names[2], k.gold]] : [])].forEach(([nm, col], i) => { c.fillStyle = col; c.fillText('■ ' + nm, P + i * 150, H - 6); });
   }
 };
