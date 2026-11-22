@@ -122,5 +122,5 @@ http.createServer(async (q, r) => {
   let p = path.normalize(decodeURIComponent(q.url.split('?')[0])); if (p === '/' || p === '\\') p = '/index.html';
   const f = path.join(root, p); if (!f.startsWith(root)) { r.writeHead(403); return r.end(); }
   fs.readFile(f, (e, data) => { if (e) { r.writeHead(404); return r.end('Not found'); }
-    r.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'application/octet-stream' }); r.end(data); });
+    r.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-store' }); r.end(data); });
 }).listen(3000, () => console.log('MoneyMente: http://localhost:3000'));
