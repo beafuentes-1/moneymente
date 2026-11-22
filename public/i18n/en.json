@@ -299,5 +299,21 @@
  "plan_invest_d": "Your basic cash reserve is in place and no debt is listed. Compare risks, fees and time horizon before investing; returns are not guaranteed.",
  "plan_maintain": "Keep reviewing your plan",
  "plan_maintain_d": "Your listed basics look covered. Revisit your budget, reserve and goals when your situation changes.",
- "score_weights": "Weights: saving rate 25%, emergency runway 25%, debt load 20%, budget balance 15%, investments 15%. Financial figures are combined with your answers after you finish the questionnaire."
+ "score_weights": "Weights: saving rate 25%, emergency runway 25%, debt load 20%, budget balance 15%, investments 15%. Financial figures are combined with your answers after you finish the questionnaire.",
+ "aria_settings": "Settings",
+ "aria_language": "Language",
+ "aria_goal": "Goal",
+ "aria_year": "Year",
+ "aria_close": "Close",
+ "aria_delete": "Delete",
+ "aria_buck": "Ask Buck, the MoneyMente assistant",
+ "aria_brand_logo": "MoneyMente growth coin",
+ "year_one": "year",
+ "year_many": "years",
+ "task_ledger": "Track all 12 months of income and expenses in the Year Ledger",
+ "task_automate": "Automate a monthly payday transfer to emergency savings",
+ "task_annual": "Schedule annual and future-year expenses such as holidays, taxes, and repairs",
+ "demo_starter": "Build a $1,000 starter emergency fund",
+ "demo_debt": "Pay down the 28% credit card using the avalanche method",
+ "demo_sinking": "Set aside money each month for annual holiday and tuition expenses"
 }

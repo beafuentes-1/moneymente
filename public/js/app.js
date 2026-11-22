@@ -19,6 +19,15 @@ const planCopy = step => {
   const detail = step.id === 'deficit' ? { n: money(step.amount) } : step.id === 'debt' ? { n: money(step.amount), r: step.rate } : step.id === 'goals' ? { n: money(step.amount), g: step.name || t('g_unnamed') } : { n: money(step.amount) };
   return { title: t('plan_' + step.id), description: t('plan_' + step.id + '_d', detail) };
 };
+const legacyTaskKeys = {
+  'Track all 12 months of income & expenses in the Year Ledger': 'task_ledger',
+  'Automate monthly payday transfer to emergency savings': 'task_automate',
+  'Schedule annual & future-year expenses (holidays, taxes, repairs)': 'task_annual',
+  'Build $1,000 starter emergency fund': 'demo_starter',
+  'Attack 28% credit card using Avalanche method': 'demo_debt',
+  'Set aside monthly sinking fund for annual Holiday & Tuition expenses': 'demo_sinking'
+};
+const actionTitle = a => a.titleKey ? t(a.titleKey) : legacyTaskKeys[a.title] ? t(legacyTaskKeys[a.title]) : a.title;
 const money = n => (n < 0 ? '-$' : '$') + Math.abs(Math.round(n)).toLocaleString(lang);
 const short = n => { const a = Math.abs(n), s = n < 0 ? '-' : ''; return a >= 1e6 ? s + '$' + (a / 1e6).toFixed(1) + 'M' : a >= 1e3 ? s + '$' + Math.round(a / 1e3) + 'k' : s + '$' + Math.round(a); };
 const mlabel = (ym, long) => { const [y, m] = ym.split('-'); return new Intl.DateTimeFormat(lang, { month: 'short', year: long ? 'numeric' : '2-digit' }).format(new Date(+y, +m - 1, 1)); };
@@ -27,16 +36,16 @@ const mk = a => a.map(([key, amount, type]) => ({ key, amount, type }));
 const curYear = () => new Date().getFullYear();
 const fresh = () => ({ income: 0, savings: 0, invested: 0, extra: '', ret: { y: 30, r: 7, m: '' }, debts: [], goals: [], special: [], hist: {},
   quiz: { save: '', run: '', debt: '', bal: '', inv: '' }, quizOpen: true, ledgerYear: curYear(), horizon: 36, incGrowth: 3, inflation: 3,
-  actions: [{ title: 'Track all 12 months of income & expenses in the Year Ledger', ym: Engine.addMonths(nowYM(), 1), amount: 0, done: false },
-    { title: 'Automate monthly payday transfer to emergency savings', ym: Engine.addMonths(nowYM(), 1), amount: 200, done: false },
-    { title: 'Schedule annual & future-year expenses (holidays, taxes, repairs)', ym: Engine.addMonths(nowYM(), 3), amount: 0, done: false }],
+  actions: [{ titleKey: 'task_ledger', title: '', ym: Engine.addMonths(nowYM(), 1), amount: 0, done: false },
+    { titleKey: 'task_automate', title: '', ym: Engine.addMonths(nowYM(), 1), amount: 200, done: false },
+    { titleKey: 'task_annual', title: '', ym: Engine.addMonths(nowYM(), 3), amount: 0, done: false }],
   cats: mk([['housing', 0, 'need'], ['food', 0, 'need'], ['transport', 0, 'need'], ['utilities', 0, 'need'], ['health', 0, 'need'], ['fun', 0, 'want'], ['shopping', 0, 'want'], ['other', 0, 'want']]) });
 function normalizeState(raw) {
   const d = fresh(); if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return d;
   const finite = (v, fallback = 0) => Number.isFinite(+v) && +v >= 0 ? +v : fallback;
   const list = (v, fallback, map) => Array.isArray(v) ? v.filter(x => x && typeof x === 'object' && !Array.isArray(x)).map(map) : fallback;
   const s = { ...d, ...raw, income: finite(raw.income), savings: finite(raw.savings), invested: finite(raw.invested),
-    quiz: { ...d.quiz, ...(raw.quiz && typeof raw.quiz === 'object' ? raw.quiz : {}) }, actions: list(raw.actions, d.actions, x => ({ title: String(x.title || ''), ym: /^\d{4}-\d{2}$/.test(x.ym) ? x.ym : '', amount: finite(x.amount), done: !!x.done })),
+    quiz: { ...d.quiz, ...(raw.quiz && typeof raw.quiz === 'object' ? raw.quiz : {}) }, actions: list(raw.actions, d.actions, x => ({ title: String(x.title || ''), titleKey: Object.values(legacyTaskKeys).includes(x.titleKey) ? x.titleKey : '', ym: /^\d{4}-\d{2}$/.test(x.ym) ? x.ym : '', amount: finite(x.amount), done: !!x.done })),
     debts: list(raw.debts, d.debts, x => ({ name: String(x.name || ''), balance: finite(x.balance), rate: finite(x.rate), min: finite(x.min) })),
     cats: list(raw.cats, d.cats, x => ({ key: String(x.key || ''), name: String(x.name || ''), amount: finite(x.amount), type: x.type === 'need' ? 'need' : 'want' })),
     goals: list(raw.goals, d.goals, x => ({ ...x, name: String(x.name || ''), target: finite(x.target), current: finite(x.current), monthly: x.monthly === '' ? '' : finite(x.monthly) })),
@@ -115,14 +124,14 @@ function drawLists() {
   $$('#income,#savings,#invested').forEach(e => e.value = S[e.id]);
   const p = P(), sur = Math.max(0, p.income - p.expenses); $('#extra').value = S.extra; $('#extra').placeholder = money(sur);
   drawQuiz();
-  $('#debts').innerHTML = S.debts.map((d, i) => `<div class="row4">${['name', 'balance', 'rate', 'min'].map(k => inp(`debts.${i}.${k}`, k === 'name' ? 'text' : 'number', t('d_' + k))).join('')}<button class="x" data-del="debts.${i}" aria-label="Delete">✕</button></div>`).join('');
-  $('#cats').innerHTML = S.cats.map((c, i) => `<div class="row3">${inp(`cats.${i}.name`, 'text', t('d_name'), catName(c))}${inp(`cats.${i}.amount`, 'number', t('cat_amt'))}${sel(`cats.${i}.type`, [['need', t('need')], ['want', t('want')]], t('cat_type'))}<button class="x" data-del="cats.${i}" aria-label="Delete">✕</button></div>`).join('');
-  $('#goals').innerHTML = S.goals.length ? S.goals.map((g, i) => `<div class="goal"><div class="gin">${fld(`goals.${i}.name`, 'text', t('g_name'))}${fld(`goals.${i}.target`, 'number', t('g_target'))}${fld(`goals.${i}.current`, 'number', t('g_have'))}${sfld(`goals.${i}.date`, dateOpts(), t('g_date'))}${fld(`goals.${i}.monthly`, 'number', t('g_monthly'))}<button class="x" data-del="goals.${i}" aria-label="Delete">✕</button></div><div class="gres" data-gi="${i}"></div></div>`).join('') : `<p class="mu">${t('g_none')}</p>`;
+  $('#debts').innerHTML = S.debts.map((d, i) => `<div class="row4">${['name', 'balance', 'rate', 'min'].map(k => inp(`debts.${i}.${k}`, k === 'name' ? 'text' : 'number', t('d_' + k))).join('')}<button class="x" data-del="debts.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div>`).join('');
+  $('#cats').innerHTML = S.cats.map((c, i) => `<div class="row3">${inp(`cats.${i}.name`, 'text', t('d_name'), catName(c))}${inp(`cats.${i}.amount`, 'number', t('cat_amt'))}${sel(`cats.${i}.type`, [['need', t('need')], ['want', t('want')]], t('cat_type'))}<button class="x" data-del="cats.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div>`).join('');
+  $('#goals').innerHTML = S.goals.length ? S.goals.map((g, i) => `<div class="goal"><div class="gin">${fld(`goals.${i}.name`, 'text', t('g_name'))}${fld(`goals.${i}.target`, 'number', t('g_target'))}${fld(`goals.${i}.current`, 'number', t('g_have'))}${sfld(`goals.${i}.date`, dateOpts(), t('g_date'))}${fld(`goals.${i}.monthly`, 'number', t('g_monthly'))}<button class="x" data-del="goals.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div><div class="gres" data-gi="${i}"></div></div>`).join('') : `<p class="mu">${t('g_none')}</p>`;
   gsel = Math.min(gsel, Math.max(0, S.goals.length - 1));
   $('#gsel').innerHTML = S.goals.map((g, i) => `<option value="${i}" ${i === gsel ? 'selected' : ''}>${esc(g.name || t('g_unnamed'))}</option>`).join('');
-  $('#special').innerHTML = S.special.map((s, i) => `<div class="sp">${fld(`special.${i}.name`, 'text', t('y_name'))}${sfld(`special.${i}.ym`, monthOpts(), t('y_month'))}${fld(`special.${i}.amount`, 'number', t('y_amt'))}${sfld(`special.${i}.kind`, [['exp', t('y_exp')], ['inc', t('y_inc')]], '·')}${sfld(`special.${i}.freq`, freqOpts(), t('y_freq'))}<button class="x" data-del="special.${i}" aria-label="Delete">✕</button></div>`).join('');
+  $('#special').innerHTML = S.special.map((s, i) => `<div class="sp">${fld(`special.${i}.name`, 'text', t('y_name'))}${sfld(`special.${i}.ym`, monthOpts(), t('y_month'))}${fld(`special.${i}.amount`, 'number', t('y_amt'))}${sfld(`special.${i}.kind`, [['exp', t('y_exp')], ['inc', t('y_inc')]], '·')}${sfld(`special.${i}.freq`, freqOpts(), t('y_freq'))}<button class="x" data-del="special.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></div>`).join('');
   if ($('#lyr')) $('#lyr').innerHTML = yearListOpts().map(y => `<option value="${y}" ${+S.ledgerYear === y ? 'selected' : ''}>${y}</option>`).join('');
-  if ($('#yhor')) $('#yhor').value = String(S.horizon || 36);
+  if ($('#yhor')) { $('#yhor').innerHTML = [12, 24, 36, 60].map(n => { const years = n / 12; return `<option value="${n}">${years} ${t(years === 1 ? 'year_one' : 'year_many')}</option>`; }).join(''); $('#yhor').value = String(S.horizon || 36); }
   if ($('#yincg')) $('#yincg').value = S.incGrowth ?? 3;
   if ($('#yinf')) $('#yinf').value = S.inflation ?? 3;
   $('#hist').innerHTML = yearMonths().map(ym => `<div class="hh"><b>${mlabel(ym, 1)}</b>${inp(`hist.${ym}.income`, 'number', t('income'))}${inp(`hist.${ym}.expenses`, 'number', t('y_exp'))}<i data-hnet="${ym}"></i></div>`).join('');
@@ -149,7 +158,7 @@ function renderPlanHub(f, hr, lsumHtml) {
   const el = $('#plan-hub'); if (!el) return;
   const sk = f.sink, hMonths = +S.horizon || 36;
   const sinkMsg = sk.totalExp > 0 ? t('p_sink_d', { tot: money(sk.totalExp), m: hMonths, avg: money(sk.avgMonthly), pk: money(sk.peakMonthly) }) : t('p_sink_none');
-  const actsHtml = (S.actions || []).map((a, i) => `<li class="act-item ${a.done ? 'done' : ''}"><input type="checkbox" data-act-chk="${i}" ${a.done ? 'checked' : ''}><span>${esc(a.title)}</span><small>${a.ym ? mlabel(a.ym, 1) : ''}${num(a.amount) ? ' · ' + money(a.amount) : ''}</small><button class="x" data-del="actions.${i}" aria-label="Delete">✕</button></li>`).join('');
+  const actsHtml = (S.actions || []).map((a, i) => `<li class="act-item ${a.done ? 'done' : ''}"><input type="checkbox" data-act-chk="${i}" ${a.done ? 'checked' : ''}><span>${esc(actionTitle(a))}</span><small>${a.ym ? mlabel(a.ym, 1) : ''}${num(a.amount) ? ' · ' + money(a.amount) : ''}</small><button class="x" data-del="actions.${i}" aria-label="${esc(t('aria_delete'))}">✕</button></li>`).join('');
   el.innerHTML = `<div class="subcard"><h3>🎯 ${esc(t('p_sink_t'))}</h3><p class="hl">${esc(sinkMsg)}</p>
 <h3>✅ ${esc(t('p_tasks_t'))}</h3><small>${esc(t('p_tasks_d'))}</small><ul class="act-list">${actsHtml}</ul>
 <div class="act-add"><input id="nt-title" type="text" placeholder="${esc(t('p_task_ph'))}"><select id="nt-ym">${monthOpts().map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select><input id="nt-amt" type="number" min="0" placeholder="${esc(t('y_amt'))}"><button class="btn" id="add-task">${esc(t('p_add_task'))}</button></div></div>
@@ -224,7 +233,7 @@ ${p.debts.some(d => d.balance > 0) ? `<h2>${t('r_debts')}</h2><table><tr><th>${t
 ${gs.length ? `<h2>${t('r_goals')}</h2><table><tr><th>${t('g_name')}</th><th>${t('g_target')}</th><th>${t('g_have')}</th><th>${t('g_need')}</th><th>${t('g_plan')}</th><th></th></tr>${gs.map(g => `<tr><td>${esc(g.name)}</td><td>${money(g.target)}</td><td>${money(g.current)}</td><td>${money(g.need)}</td><td>${money(g.planned)}</td><td>${t('g_' + g.status)}</td></tr>`).join('')}</table>${shot(c => drawGoalBars(c, gs), 800, Math.max(120, gs.length * 58 + 24))}` : ''}
 <h2>${t('r_year')}</h2><p>${t('y_sum', { i: money(f.inc), e: money(f.exp), n: money(f.inc - f.exp) })} ${t('y_low', { v: money(f.low.balance), m: mlabel(f.low.ym, 1) })}</p>${multiYearTable(f.rollup)}${shot(c => Charts.year(c, yrows(f), short, yearNames()), 800, 340)}
 <h2>${t('r_plan')}</h2><ol>${reportPlan.map(step => { const copy = planCopy(step); return `<li><b>${esc(copy.title)}:</b> ${esc(copy.description)}</li>`; }).join('')}</ol>
-${(S.actions && S.actions.length) ? `<ul>${S.actions.map(a => `<li>${a.done ? '✓' : '☐'} ${esc(a.title)} (${a.ym ? mlabel(a.ym, 1) : ''}${num(a.amount) ? ' · ' + money(a.amount) : ''})</li>`).join('')}</ul>` : ''}<p><small>${t('disc')}</small></p>`;
+${(S.actions && S.actions.length) ? `<ul>${S.actions.map(a => `<li>${a.done ? '✓' : '☐'} ${esc(actionTitle(a))} (${a.ym ? mlabel(a.ym, 1) : ''}${num(a.amount) ? ' · ' + money(a.amount) : ''})</li>`).join('')}</ul>` : ''}<p><small>${t('disc')}</small></p>`;
 }
 // ---------- navigation, audio, events ----------
 function go(name) { tab = name; $$('[data-view]').forEach(s => s.classList.toggle('on', s.dataset.view === name)); $$('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === name ? 'page' : 'false')); if (name === 'report') buildReport(); window.scrollTo(0, 0); }
@@ -250,9 +259,9 @@ function demo() {
     cats: mk([['housing', 520, 'need'], ['food', 380, 'need'], ['transport', 160, 'need'], ['utilities', 130, 'need'], ['health', 60, 'need'], ['fun', 150, 'want'], ['shopping', 110, 'want'], ['other', 90, 'want']]),
     goals: [{ name: t('dg1'), target: 7000, current: 900, date: a(18), monthly: '' }, { name: t('dg2'), target: 1200, current: 200, date: a(8), monthly: '' }, { name: t('dg3'), target: 15000, current: 0, date: a(60), monthly: 200 }],
     special: [{ name: t('ds1'), ym: a(1), amount: 250, kind: 'exp', freq: 'yearly' }, { name: t('ds2'), ym: a(2), amount: 400, kind: 'inc', freq: 'yearly' }, { name: t('ds3'), ym: a(6), amount: 600, kind: 'exp', freq: 'yearly' }],
-    actions: [{ title: 'Build $1,000 starter emergency fund', ym: a(1), amount: 100, done: false },
-      { title: 'Attack 28% credit card using Avalanche method', ym: a(4), amount: 500, done: false },
-      { title: 'Set aside monthly sinking fund for annual Holiday & Tuition expenses', ym: a(6), amount: 71, done: false }],
+    actions: [{ titleKey: 'demo_starter', title: '', ym: a(1), amount: 100, done: false },
+      { titleKey: 'demo_debt', title: '', ym: a(4), amount: 500, done: false },
+      { titleKey: 'demo_sinking', title: '', ym: a(6), amount: 71, done: false }],
     hist: Object.fromEntries(yearMonths(yr).map((ym, i) => [ym, { income: 2150 + (i * 37) % 120 + (i === 11 ? 400 : 0), expenses: 1600 + (i * 53) % 240 + (i === 11 ? 250 : 0) }])) };
   drawLists(); renderAll();
 }
@@ -297,6 +306,7 @@ async function load() {
   T = await (await fetch('i18n/' + lang + '.json')).json();
   document.documentElement.lang = lang; $('#lang').value = lang;
   $$('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
+  $$('[data-i18n-aria]').forEach(e => e.setAttribute('aria-label', t(e.dataset.i18nAria)));
   $('.vmenu').hidden = !canSpeak; drawLists(); renderAll(); go(tab); if (window.onLoaded) onLoaded();
 }
 load();

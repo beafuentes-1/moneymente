@@ -299,5 +299,21 @@
  "plan_invest_d": "Tu reserva básica está cubierta y no registraste deudas. Compara riesgos, costos y plazo antes de invertir; los rendimientos no están garantizados.",
  "plan_maintain": "Revisa tu plan periódicamente",
  "plan_maintain_d": "Los aspectos básicos registrados parecen cubiertos. Revisa presupuesto, reserva y metas cuando cambie tu situación.",
- "score_weights": "Ponderaciones: tasa de ahorro 25%, reserva de emergencia 25%, deudas 20%, balance del presupuesto 15% e inversiones 15%. Las cifras financieras se combinan con tus respuestas al completar el cuestionario."
+ "score_weights": "Ponderaciones: tasa de ahorro 25%, reserva de emergencia 25%, deudas 20%, balance del presupuesto 15% e inversiones 15%. Las cifras financieras se combinan con tus respuestas al completar el cuestionario.",
+ "aria_settings": "Configuración",
+ "aria_language": "Idioma",
+ "aria_goal": "Meta",
+ "aria_year": "Año",
+ "aria_close": "Cerrar",
+ "aria_delete": "Eliminar",
+ "aria_buck": "Preguntarle a Buck, el asistente de MoneyMente",
+ "aria_brand_logo": "Moneda MoneyMente con gráfico de crecimiento",
+ "year_one": "año",
+ "year_many": "años",
+ "task_ledger": "Registra los ingresos y gastos de los 12 meses en el registro anual",
+ "task_automate": "Programa una transferencia mensual automática a tu fondo de emergencia",
+ "task_annual": "Programa gastos anuales y futuros, como fiestas, impuestos y reparaciones",
+ "demo_starter": "Crea un fondo de emergencia inicial de $1,000",
+ "demo_debt": "Paga la tarjeta con 28% de interés usando el método avalancha",
+ "demo_sinking": "Aparta dinero cada mes para gastos anuales de fiestas y matrícula"
 }
