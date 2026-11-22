@@ -420,6 +420,7 @@ async function load() {
   document.documentElement.lang = lang; $('#lang').value = lang;
   $$('[data-i18n]').forEach(e => e.textContent = t(e.dataset.i18n));
   $$('[data-i18n-aria]').forEach(e => e.setAttribute('aria-label', t(e.dataset.i18nAria)));
+  $$('[data-i18n-alt]').forEach(e => e.setAttribute('alt', t(e.dataset.i18nAlt)));
   $('.vmenu').hidden = !canSpeak; drawLists(); renderAll(); go(tab); if (window.onLoaded) onLoaded();
 }
 load();

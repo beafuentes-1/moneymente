@@ -17,7 +17,7 @@ for (const key of Object.keys(en)) {
 }
 
 const refs = new Set();
-for (const match of html.matchAll(/data-i18n(?:-aria)?="([^"]+)"/g)) refs.add(match[1]);
+for (const match of html.matchAll(/data-i18n(?:-aria|-alt)?="([^"]+)"/g)) refs.add(match[1]);
 for (const match of `${app}\n${chat}`.matchAll(/\bt\(\s*['"]([^'"]+)['"]/g)) {
   if (!match[1].endsWith('_') && !['l', 'tip'].includes(match[1])) refs.add(match[1]);
 }

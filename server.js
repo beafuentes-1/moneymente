@@ -16,7 +16,7 @@ async function resolveLlama() {
   }
   return null;
 }
-const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json' };
+const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png' };
 const STOP = new Set('the and for you what how does can are with that this from have not que como para una los las del por con mas pero'.split(' '));
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ');
 const words = s => norm(s).split(/\s+/).filter(w => w.length > 2 && !STOP.has(w)), stem = w => w.slice(0, 4);

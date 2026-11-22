@@ -401,5 +401,8 @@
  "sp_l_b1": "Sex: {sexes}; ages {a} to {b}; {areas} areas.",
  "sp_l_b2": "They live in {depts}; their education is: {edus}.",
  "sp_l_b3": "They work in: {occ}.",
+ "sp_map_t": "Entrepreneurs by district in El Salvador",
+ "sp_map_d": "Heat map: the darker the district, the more entrepreneurs. San Salvador Centro leads with 2,977.",
+ "sp_map_alt": "Heat map of entrepreneurs by district in El Salvador",
  "pf_advisor_note": "Buck's chat already receives your numbers. With the profile (age, household, occupation, department) it could give more tailored advice. For example, a single-parent household needs a larger emergency fund than a couple without children, and someone aged 55 prioritizes retirement more than someone aged 25."
 }

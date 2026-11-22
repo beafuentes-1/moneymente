@@ -401,5 +401,8 @@
  "sp_l_b1": "Sexo: {sexes}; edades de {a} a {b} años; zona {areas}.",
  "sp_l_b2": "Viven en {depts}; su educación es: {edus}.",
  "sp_l_b3": "Se dedican a: {occ}.",
+ "sp_map_t": "Emprendedores por distrito en El Salvador",
+ "sp_map_d": "Mapa de calor: cuanto más oscuro el distrito, más emprendedores. San Salvador Centro lidera con 2,977.",
+ "sp_map_alt": "Mapa de calor de emprendedores por distrito de El Salvador",
  "pf_advisor_note": "El chat de Buck ya recibe tus números. Con el perfil (edad, hogar, ocupación, departamento) daría consejos más a la medida. Por ejemplo, un hogar monoparental necesita un fondo de emergencia mayor que una pareja sin hijos, y alguien de 55 años prioriza retiro más que alguien de 25."
 }
