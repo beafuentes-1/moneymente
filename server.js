@@ -137,5 +137,5 @@ http.createServer(async (q, r) => {
   const p = decoded === '/' || decoded === '\\' ? 'index.html' : decoded.replace(/^[/\\]+/, '');
   const f = path.resolve(root, p); if (f !== root && !f.startsWith(root + path.sep)) { r.writeHead(403); return r.end(); }
   fs.readFile(f, (e, data) => { if (e) { r.writeHead(404); return r.end('Not found'); }
-    r.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'application/octet-stream' }); r.end(data); });
+    r.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'application/octet-stream', 'Cache-Control': 'no-store' }); r.end(data); });
 }).listen(PORT, () => console.log(`MoneyMente: http://localhost:${PORT}`));
