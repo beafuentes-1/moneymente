@@ -11,9 +11,14 @@ const short = n => { const a = Math.abs(n), s = n < 0 ? '-' : ''; return a >= 1e
 const mlabel = (ym, long) => { const [y, m] = ym.split('-'); return new Intl.DateTimeFormat(lang, { month: 'short', year: long ? 'numeric' : '2-digit' }).format(new Date(+y, +m - 1, 1)); };
 const COL = ['#da291c', '#4aa3ff', '#ffffff', '#9db0d3', '#ff7a6e', '#2f6fd6', '#d9e2f5', '#8a1a12', '#7ec0ff', '#ffb3ab'];
 const mk = a => a.map(([key, amount, type]) => ({ key, amount, type }));
+const curYear = () => new Date().getFullYear();
 const fresh = () => ({ income: 1000, savings: 0, invested: 0, extra: '', ret: { y: 30, r: 7, m: '' }, debts: [], goals: [], special: [], hist: {},
+  quiz: { save: '', run: '', debt: '', bal: '', inv: '' }, quizOpen: true, ledgerYear: curYear(), horizon: 36, incGrowth: 3, inflation: 3,
+  actions: [{ title: 'Track all 12 months of income & expenses in the Year Ledger', ym: Engine.addMonths(nowYM(), 1), amount: 0, done: false },
+    { title: 'Automate monthly payday transfer to emergency savings', ym: Engine.addMonths(nowYM(), 1), amount: 200, done: false },
+    { title: 'Schedule annual & future-year expenses (holidays, taxes, repairs)', ym: Engine.addMonths(nowYM(), 3), amount: 0, done: false }],
   cats: mk([['housing', 300, 'need'], ['food', 200, 'need'], ['transport', 80, 'need'], ['utilities', 70, 'need'], ['health', 30, 'need'], ['fun', 60, 'want'], ['shopping', 40, 'want'], ['other', 20, 'want']]) });
-let S; try { S = { ...fresh(), ...JSON.parse(localStorage.getItem(KEY)) }; } catch { S = fresh(); }
+let S; try { S = { ...fresh(), ...JSON.parse(localStorage.getItem(KEY)) }; if (!S.quiz) S.quiz = fresh().quiz; if (!Array.isArray(S.actions)) S.actions = fresh().actions; if (!S.ledgerYear) S.ledgerYear = curYear(); if (!S.horizon) S.horizon = 36; } catch { S = fresh(); }
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
 const catName = c => c.name || t('cat_' + (c.key || 'other'));
 const val = path => path.split('.').reduce((o, k) => o?.[k], S);
@@ -30,9 +35,11 @@ function goalsCalc(p = P()) {
     return { name: g.name || t('g_unnamed'), target, current: cur, months, planned, need: Engine.need(target, cur, months, 6), proj, status: r >= 1 ? 'on' : r >= .8 ? 'close' : 'behind', pct: target ? Math.min(100, cur / target * 100) : 0 }; });
 }
 const LP = () => { const p = P(), g = goalsCalc(p); return { ...p, goalsOk: g.length > 0 && g.every(x => x.status === 'on') }; };
-function fc() {
-  const p = P(), b = Engine.budget(S.cats, p.income), rows = Engine.forecast(p, b, S.special.map(s => ({ ym: s.ym, kind: s.kind, amount: num(s.amount) })), nowYM());
-  return { rows, low: rows.reduce((a, r) => r.balance < a.balance ? r : a, rows[0]), deficits: rows.filter(r => r.net < 0).length, inc: rows.reduce((s, r) => s + r.income, 0), exp: rows.reduce((s, r) => s + r.expenses, 0) };
+function fc(n = +S.horizon || 12) {
+  const p = P(), b = Engine.budget(S.cats, p.income), sp = S.special.map(s => ({ ym: s.ym, kind: s.kind, amount: num(s.amount), freq: s.freq || 'once' }));
+  const rows = Engine.forecast(p, b, sp, nowYM(), n, { ledger: S.hist, incGrowth: +S.incGrowth || 0, inflation: +S.inflation || 0 });
+  const sink = Engine.sinkingFund(sp, nowYM(), n), rollup = Engine.yearlyRollup(rows);
+  return { rows, sink, rollup, low: rows.reduce((a, r) => r.balance < a.balance ? r : a, rows[0]), deficits: rows.filter(r => r.net < 0).length, inc: rows.reduce((s, r) => s + r.income, 0), exp: rows.reduce((s, r) => s + r.expenses, 0) };
 }
 function advice(p, b) {
   const a = [], pc = n => n.toFixed(0);
@@ -50,27 +57,52 @@ function insights(p, b, gs, f) {
 
 // ---------- editable lists ----------
 const inp = (path, type, ph, v = val(path)) => `<input data-b="${path}" type="${type}" ${type === 'number' ? 'min="0" inputmode="decimal"' : ''} placeholder="${esc(ph)}" aria-label="${esc(ph)}" value="${esc(v)}">`;
-const sel = (path, opts, ph) => `<select data-b="${path}" aria-label="${esc(ph)}">${opts.map(([v, l]) => `<option value="${v}" ${String(val(path)) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+const sel = (path, opts, ph) => `<select data-b="${path}" aria-label="${esc(ph)}">${opts.map(([v, l]) => `<option value="${v}" ${String(val(path) ?? '') === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
 const fld = (path, type, ph) => `<label class="f"><span>${esc(ph)}</span>${inp(path, type, ph)}</label>`, sfld = (path, opts, ph) => `<label class="f"><span>${esc(ph)}</span>${sel(path, opts, ph)}</label>`;
 const dateOpts = () => [...Array(60).keys()].map(i => i + 1).concat(Array.from({ length: 25 }, (_, i) => (i + 6) * 12)).map(n => { const ym = Engine.addMonths(nowYM(), n); return [ym, mlabel(ym, 1)]; });
-const monthOpts = () => Array.from({ length: 12 }, (_, i) => { const ym = Engine.addMonths(nowYM(), i + 1); return [ym, mlabel(ym, 1)]; });
+const monthOpts = () => Array.from({ length: 60 }, (_, i) => { const ym = Engine.addMonths(nowYM(), i + 1); return [ym, mlabel(ym, 1)]; });
+const freqOpts = () => [['once', t('f_once')], ['yearly', t('f_yearly')], ['quarterly', t('f_quarterly')], ['monthly', t('f_monthly')]];
+const yearMonths = (yr = +S.ledgerYear || curYear()) => Array.from({ length: 12 }, (_, i) => `${yr}-${String(i + 1).padStart(2, '0')}`);
+const yearListOpts = () => Array.from({ length: 7 }, (_, i) => curYear() - 1 + i);
 const ADD = { debts: () => ({ name: '', balance: '', rate: '', min: '' }), cats: () => ({ name: '', amount: '', type: 'want' }),
-  goals: () => ({ name: '', target: '', current: '', date: Engine.addMonths(nowYM(), 24), monthly: '' }), special: () => ({ name: '', ym: Engine.addMonths(nowYM(), 1), amount: '', kind: 'exp' }) };
+  goals: () => ({ name: '', target: '', current: '', date: Engine.addMonths(nowYM(), 24), monthly: '' }), special: () => ({ name: '', ym: Engine.addMonths(nowYM(), 1), amount: '', kind: 'exp', freq: 'once' }) };
+
+function fillLedgerYear(yr = +S.ledgerYear || curYear()) {
+  const p = P(), b = Engine.budget(S.cats, p.income), sp = S.special.map(s => ({ ym: s.ym, kind: s.kind, amount: num(s.amount), freq: s.freq || 'once' }));
+  for (const ym of yearMonths(yr)) {
+    const mSp = sp.filter(s => Engine.matchSpecial(s, ym));
+    const spInc = mSp.filter(s => s.kind === 'inc').reduce((a, s) => a + s.amount, 0);
+    const spExp = mSp.filter(s => s.kind !== 'inc').reduce((a, s) => a + s.amount, 0);
+    S.hist[ym] = { income: Math.round(p.income + spInc), expenses: Math.round(b.total + spExp) };
+  }
+  drawLists(); renderAll();
+}
+function drawQuiz() {
+  const qk = ['save', 'run', 'debt', 'bal', 'inv'];
+  $('#quiz-box').hidden = !S.quizOpen;
+  $('#quiz-box').innerHTML = qk.map(k => `<div class="q-item"><p>${esc(t('q_' + k + '_q'))}</p>${sel('quiz.' + k, [['', t('q_pick')], ['0', t('q_' + k + '_0')], ['50', t('q_' + k + '_50')], ['100', t('q_' + k + '_100')]], t('sc_' + k))}</div>`).join('') +
+    `<div class="acts"><button class="btn" id="quiz-done">${esc(t('q_close'))}</button></div>`;
+}
 function drawLists() {
   $$('#income,#savings,#invested').forEach(e => e.value = S[e.id]);
   const p = P(), sur = Math.max(0, p.income - p.expenses); $('#extra').value = S.extra; $('#extra').placeholder = money(sur);
+  drawQuiz();
   $('#debts').innerHTML = S.debts.map((d, i) => `<div class="row4">${['name', 'balance', 'rate', 'min'].map(k => inp(`debts.${i}.${k}`, k === 'name' ? 'text' : 'number', t('d_' + k))).join('')}<button class="x" data-del="debts.${i}" aria-label="Delete">✕</button></div>`).join('');
   $('#cats').innerHTML = S.cats.map((c, i) => `<div class="row3">${inp(`cats.${i}.name`, 'text', t('d_name'), catName(c))}${inp(`cats.${i}.amount`, 'number', t('cat_amt'))}${sel(`cats.${i}.type`, [['need', t('need')], ['want', t('want')]], t('cat_type'))}<button class="x" data-del="cats.${i}" aria-label="Delete">✕</button></div>`).join('');
   $('#goals').innerHTML = S.goals.length ? S.goals.map((g, i) => `<div class="goal"><div class="gin">${fld(`goals.${i}.name`, 'text', t('g_name'))}${fld(`goals.${i}.target`, 'number', t('g_target'))}${fld(`goals.${i}.current`, 'number', t('g_have'))}${sfld(`goals.${i}.date`, dateOpts(), t('g_date'))}${fld(`goals.${i}.monthly`, 'number', t('g_monthly'))}<button class="x" data-del="goals.${i}" aria-label="Delete">✕</button></div><div class="gres" data-gi="${i}"></div></div>`).join('') : `<p class="mu">${t('g_none')}</p>`;
   gsel = Math.min(gsel, Math.max(0, S.goals.length - 1));
   $('#gsel').innerHTML = S.goals.map((g, i) => `<option value="${i}" ${i === gsel ? 'selected' : ''}>${esc(g.name || t('g_unnamed'))}</option>`).join('');
-  $('#special').innerHTML = S.special.map((s, i) => `<div class="sp">${fld(`special.${i}.name`, 'text', t('y_name'))}${sfld(`special.${i}.ym`, monthOpts(), t('y_month'))}${fld(`special.${i}.amount`, 'number', t('y_amt'))}${sfld(`special.${i}.kind`, [['exp', t('y_exp')], ['inc', t('y_inc')]], '·')}<button class="x" data-del="special.${i}" aria-label="Delete">✕</button></div>`).join('');
-  $('#hist').innerHTML = Array.from({ length: 12 }, (_, i) => Engine.addMonths(nowYM(), i - 12)).map(ym => `<div class="hh"><b>${mlabel(ym, 1)}</b>${inp(`hist.${ym}.income`, 'number', t('income'))}${inp(`hist.${ym}.expenses`, 'number', t('y_exp'))}</div>`).join('');
+  $('#special').innerHTML = S.special.map((s, i) => `<div class="sp">${fld(`special.${i}.name`, 'text', t('y_name'))}${sfld(`special.${i}.ym`, monthOpts(), t('y_month'))}${fld(`special.${i}.amount`, 'number', t('y_amt'))}${sfld(`special.${i}.kind`, [['exp', t('y_exp')], ['inc', t('y_inc')]], '·')}${sfld(`special.${i}.freq`, freqOpts(), t('y_freq'))}<button class="x" data-del="special.${i}" aria-label="Delete">✕</button></div>`).join('');
+  if ($('#lyr')) $('#lyr').innerHTML = yearListOpts().map(y => `<option value="${y}" ${+S.ledgerYear === y ? 'selected' : ''}>${y}</option>`).join('');
+  if ($('#yhor')) $('#yhor').value = String(S.horizon || 36);
+  if ($('#yincg')) $('#yincg').value = S.incGrowth ?? 3;
+  if ($('#yinf')) $('#yinf').value = S.inflation ?? 3;
+  $('#hist').innerHTML = yearMonths().map(ym => `<div class="hh"><b>${mlabel(ym, 1)}</b>${inp(`hist.${ym}.income`, 'number', t('income'))}${inp(`hist.${ym}.expenses`, 'number', t('y_exp'))}<i data-hnet="${ym}"></i></div>`).join('');
   const rm = S.ret.m === '' ? Math.round(sur / 2 / 10) * 10 : S.ret.m;
   $('#retctl').innerHTML = `<div class="grid3">${[['y', 1, 40, 1, S.ret.y], ['r', 1, 12, 1, S.ret.r], ['m', 0, Math.max(500, Math.round(sur * 2)), 10, rm]].map(([k, a, b, st, v]) => `<label class="f"><span>${t(k)}: <b id="${k}v"></b></span><input data-b="ret.${k}" type="range" min="${a}" max="${b}" step="${st}" value="${v}"></label>`).join('')}</div>`;
 }
 
-// ---------- chart helpers ----------
+// ---------- chart & table helpers ----------
 const catParts = () => S.cats.map((c, i) => ({ name: catName(c), v: num(c.amount), color: COL[i % COL.length] })).filter(x => x.v > 0);
 function drawBars3(cv, b) { Charts.bars(cv, [['needs', b.pct.needs, 50, '#4aa3ff'], ['wants', b.pct.wants, 30, '#ffffff'], ['save', b.pct.save, 20, '#da291c']].map(([k, v, g, c]) => ({ name: t('bar_' + k), v, target: g, color: c }))); }
 function drawGoalBars(cv, gs) {
@@ -79,24 +111,44 @@ function drawGoalBars(cv, gs) {
 }
 const yearNames = () => [t('y_inc'), t('y_exp'), t('y_bal')];
 const yrows = f => f.rows.map(r => ({ label: mlabel(r.ym), income: r.income, expenses: r.expenses, balance: r.balance }));
-const hrows = () => Array.from({ length: 12 }, (_, i) => { const ym = Engine.addMonths(nowYM(), i - 12), h = S.hist[ym]; return { label: mlabel(ym), income: num(h?.income), expenses: num(h?.expenses), has: !!(h && (h.income || h.expenses)) }; });
+const hrows = (yr = +S.ledgerYear || curYear()) => yearMonths(yr).map(ym => { const h = S.hist[ym]; return { ym, label: mlabel(ym), income: num(h?.income), expenses: num(h?.expenses), has: !!(h && (h.income !== '' && h.income != null || h.expenses !== '' && h.expenses != null)) }; });
+function multiYearTable(rollup) {
+  if (!rollup || !rollup.length) return '';
+  return `<h3>${esc(t('y_multi_t'))}</h3><table class="ytbl"><thead><tr><th>${esc(t('y_col_yr'))}</th><th>${esc(t('y_col_inc'))}</th><th>${esc(t('y_col_exp'))}</th><th>${esc(t('y_col_sp'))}</th><th>${esc(t('y_col_net'))}</th><th>${esc(t('y_col_end'))}</th></tr></thead><tbody>` +
+    rollup.map(r => `<tr><td>${esc(r.year)} (${r.months}m)</td><td>${money(r.income)}</td><td>${money(r.expenses)}</td><td>${money(r.spExp)}</td><td style="color:${r.net < 0 ? '#ff7a6e' : '#9fd0ff'}">${money(r.net)}</td><td><b>${money(r.endBalance)}</b></td></tr>`).join('') + `</tbody></table>`;
+}
+function renderPlanHub(f, hr, lsumHtml) {
+  const el = $('#plan-hub'); if (!el) return;
+  const sk = f.sink, hMonths = +S.horizon || 36;
+  const sinkMsg = sk.totalExp > 0 ? t('p_sink_d', { tot: money(sk.totalExp), m: hMonths, avg: money(sk.avgMonthly), pk: money(sk.peakMonthly) }) : t('p_sink_none');
+  const actsHtml = (S.actions || []).map((a, i) => `<li class="act-item ${a.done ? 'done' : ''}"><input type="checkbox" data-act-chk="${i}" ${a.done ? 'checked' : ''}><span>${esc(a.title)}</span><small>${a.ym ? mlabel(a.ym, 1) : ''}${num(a.amount) ? ' · ' + money(a.amount) : ''}</small><button class="x" data-del="actions.${i}" aria-label="Delete">✕</button></li>`).join('');
+  el.innerHTML = `<div class="subcard"><h3>🎯 ${esc(t('p_sink_t'))}</h3><p class="hl">${esc(sinkMsg)}</p>
+<h3>✅ ${esc(t('p_tasks_t'))}</h3><small>${esc(t('p_tasks_d'))}</small><ul class="act-list">${actsHtml}</ul>
+<div class="act-add"><input id="nt-title" type="text" placeholder="${esc(t('p_task_ph'))}"><select id="nt-ym">${monthOpts().map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join('')}</select><input id="nt-amt" type="number" min="0" placeholder="${esc(t('y_amt'))}"><button class="btn" id="add-task">${esc(t('p_add_task'))}</button></div></div>
+<div class="subcard"><div class="hd"><h3>📅 ${esc(t('p_yr_t'))}</h3><div class="acts"><button class="ghost" id="p-fill">${esc(t('y_fill'))}</button><button class="ghost" data-tab="year">${esc(t('p_open_yr'))}</button></div></div><small>${esc(t('p_yr_d'))}</small><p class="hl">${lsumHtml}</p>${multiYearTable(f.rollup)}</div>`;
+}
 
 // ---------- render ----------
 function renderAll() {
-  const p = P(), b = Engine.budget(S.cats, p.income), L = Engine.levels(LP()), cur = L.indexOf(false), k = Engine.kpis(p), sc = Engine.score(p, b), gs = goalsCalc(p), f = fc(), sur = k.surplus;
+  const p = P(), b = Engine.budget(S.cats, p.income), L = Engine.levels(LP()), cur = L.indexOf(false), k = Engine.kpis(p), sc = Engine.score(p, b, S.quiz), gs = goalsCalc(p), f = fc(), sur = k.surplus;
   $('#etot').textContent = money(p.expenses);
+  if ($('#quiz-banner')) {
+    $('#quiz-banner').className = 'q-banner' + (sc.quizDone ? ' ok' : '');
+    $('#quiz-banner').innerHTML = `<span>${esc(sc.quizDone ? t('q_done_msg') : t('q_cta'))}</span>`;
+  }
   $('#kpis').innerHTML = [['kpi_net', money(k.net)], ['kpi_sur', money(sur)], ['kpi_rate', k.rate.toFixed(0) + '%'], ['kpi_run', k.runway.toFixed(1) + ' ' + t('mo')], ['kpi_debt', money(Engine.debtTotal(p.debts))]].map(([a, v]) => `<div class="kpi"><span>${t(a)}</span><b>${v}</b></div>`).join('');
   const grd = sc.total >= 80 ? 'a' : sc.total >= 60 ? 'b' : sc.total >= 40 ? 'c' : 'd', arc = 'M20 95 A70 70 0 0 1 160 95', len = Math.PI * 70;
   $('#gauge').innerHTML = `<svg viewBox="0 0 180 112" class="gauge" role="img" aria-label="${sc.total}/100"><defs><linearGradient id="gg" x1="0" x2="1"><stop offset="0" stop-color="#da291c"/><stop offset="1" stop-color="#4aa3ff"/></linearGradient></defs><path d="${arc}" fill="none" stroke="rgba(255,255,255,.1)" stroke-width="12" stroke-linecap="round"/><path d="${arc}" fill="none" stroke="url(#gg)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${len}" stroke-dashoffset="${len * (1 - sc.total / 100)}"/><text x="90" y="84" text-anchor="middle" class="gv">${sc.total}</text><text x="90" y="104" text-anchor="middle" class="gl">${t('gr_' + grd)}</text></svg>`;
   $('#parts').innerHTML = Object.entries(sc.parts).map(([x, v]) => `<li><span>${t('sc_' + x)}</span><div class="m"><i style="width:${v}%"></i></div><b>${Math.round(v)}</b></li>`).join('');
   const starter = Math.min(1000, p.expenses || 1000), full = p.expenses * 3, eta = (c, g) => { const m = Engine.months(c, g, sur); return m === 0 ? t('reached') : m === Infinity ? t('nosurplus') : t('monthsTo', { n: m }); };
   const dr = Engine.payoff(p.debts, Math.max(0, sur), 'avalanche'), fin = Engine.compound(p.invested, Math.max(0, sur / 2), 7, 30).pop();
-  const detail = [t('nb0'), `${t('target')}: ${money(starter)}. ${eta(p.savings, starter)}`, dr.ok ? t('res', { m: dr.months, i: money(dr.interest) }) : t('never'), `${t('target')}: ${money(full)}. ${eta(p.savings, full)}`,
-    gs.length ? t('nb4', { n: gs.filter(x => x.status !== 'on').length }) : t('nb4none'), t('steps'), t('final', { y: 30, v: money(fin.v), c: money(fin.c) })][cur];
+  const stepDetails = [t('surplus', { n: money(sur) }), `${t('target')}: ${money(starter)} · ${eta(p.savings, starter)}`, Engine.debtTotal(p.debts) > 0 ? (dr.ok ? t('res', { m: dr.months, i: money(dr.interest) }) : t('never')) : t('nodebt'),
+    `${t('target')}: ${money(full)} · ${eta(p.savings, full)}`, gs.length ? t('nb4', { n: gs.filter(x => x.status !== 'on').length }) : t('nb4none'), t('steps'), t('final', { y: 30, v: money(fin.v), c: money(fin.c) })];
+  const detail = [t('nb0'), stepDetails[1], stepDetails[2], stepDetails[3], stepDetails[4], stepDetails[5], stepDetails[6]][cur];
   nextText = `${t('l' + (cur + 1) + 't')}. ${t('l' + (cur + 1) + 'd')} ${detail}`;
   $('#next').innerHTML = `<small class="eyebrow">${t('next_t')}</small><h2>${t('l' + (cur + 1) + 't')}</h2><p>${t('l' + (cur + 1) + 'd')}</p><p class="hl">${detail}</p><p class="tip">💡 ${t('tip' + (cur + 1))}</p><div class="acts">${canSpeak ? `<button class="btn" id="listen">🔊 ${t('listen')}</button>` : ''}<button class="ghost" data-go="${['numbers', 'numbers', 'numbers', 'numbers', 'goals', 'goals', 'goals'][cur]}">${t('go_t')}</button><button class="ghost" id="askplan">${t('ask_buck')}</button></div>`;
   $('#ins').innerHTML = `<h2>${t('ins_t')}</h2>${insights(p, b, gs, f).map(x => `<p class="tip">${x}</p>`).join('')}`;
-  $('#steps').innerHTML = L.map((d, i) => { const c = d ? 'done' : i === cur ? 'now' : 'next'; return `<li class="${c}"><span class="dot">${d ? '✓' : ''}</span><div><b>${t('l' + (i + 1) + 't')}</b> <small>${t('st_' + c)}</small>${c === 'now' ? `<small>${t('l' + (i + 1) + 'd')}</small>` : ''}</div></li>`; }).join('');
+  $('#steps').innerHTML = L.map((d, i) => { const c = d ? 'done' : i === cur ? 'now' : 'next'; return `<li class="${c}"><span class="dot">${d ? '✓' : ''}</span><div><b>${t('l' + (i + 1) + 't')}</b> <small>${t('st_' + c)} · ${esc(stepDetails[i])}</small>${c === 'now' ? `<small>${t('l' + (i + 1) + 'd')}</small>` : ''}</div></li>`; }).join('');
   // numbers
   $('#bchart').innerHTML = `<h2>${t('b_h')}</h2><canvas id="bc1" width="800" height="${Math.max(300, catParts().length * 26 + 70)}"></canvas><canvas id="bc2" width="800" height="190"></canvas><small>${t('bar_note')}</small>`;
   if (catParts().length) Charts.donut($('#bc1'), catParts(), money); drawBars3($('#bc2'), b);
@@ -113,16 +165,23 @@ function renderAll() {
   const rm = S.ret.m === '' ? Math.round(Math.max(0, sur) / 2 / 10) * 10 : +S.ret.m, ry = +S.ret.y, rr = +S.ret.r, rs2 = Engine.compound(p.invested, rm, rr, ry), re = rs2[rs2.length - 1];
   $('#yv').textContent = ry; $('#rv').textContent = rr; $('#mv').textContent = money(rm); $('#retfin').textContent = t('final', { y: ry, v: money(re.v), c: money(re.c) });
   Charts.line($('#rc'), [{ name: t('ch_val'), color: '#4aa3ff', d: rs2.map(x => x.v) }, { name: t('ch_con'), color: '#9db0d3', d: rs2.map(x => x.c) }], short);
-  // year
+  // year & action plan hub
   Charts.year($('#yc'), yrows(f), short, yearNames());
   const hr = hrows(), hh = hr.filter(r => r.has), avg = (a, key) => a.length ? a.reduce((s, r) => s + r[key], 0) / a.length : 0;
-  $('#ysum').innerHTML = `<p class="hl">${t('y_sum', { i: money(f.inc), e: money(f.exp), n: money(f.inc - f.exp) })} ${t('y_low', { v: money(f.low.balance), m: mlabel(f.low.ym, 1) })}${f.deficits ? ' ' + t('y_def', { n: f.deficits }) : ''}${hh.length ? '<br>' + t('y_cmp', { h: money(avg(hh, 'expenses')), f: money(f.exp / 12) }) : ''}</p>`;
+  const hInc = hr.reduce((s, r) => s + r.income, 0), hExp = hr.reduce((s, r) => s + r.expenses, 0);
+  $$('[data-hnet]').forEach(el => { const h = S.hist[el.dataset.hnet]; const has = h && (h.income !== '' && h.income != null || h.expenses !== '' && h.expenses != null); const net = num(h?.income) - num(h?.expenses); el.textContent = has ? money(net) : '—'; el.style.color = !has ? 'var(--mu)' : net < 0 ? '#ff7a6e' : '#9fd0ff'; });
+  const lsumHtml = esc(t('y_lsum', { y: S.ledgerYear || curYear(), i: money(hInc), e: money(hExp), n: money(hInc - hExp), c: hh.length }));
+  if ($('#lsum')) $('#lsum').textContent = t('y_lsum', { y: S.ledgerYear || curYear(), i: money(hInc), e: money(hExp), n: money(hInc - hExp), c: hh.length });
+  const sk = f.sink;
+  $('#ysum').innerHTML = `<p class="hl">${t('y_sum', { i: money(f.inc), e: money(f.exp), n: money(f.inc - f.exp) })} ${t('y_low', { v: money(f.low.balance), m: mlabel(f.low.ym, 1) })}${f.deficits ? ' ' + t('y_def', { n: f.deficits }) : ''}${sk.totalExp > 0 ? '<br>' + esc(t('p_sink_d', { tot: money(sk.totalExp), m: +S.horizon || 36, avg: money(sk.avgMonthly), pk: money(sk.peakMonthly) })) : ''}${hh.length ? '<br>' + t('y_cmp', { h: money(avg(hh, 'expenses')), f: money(f.exp / (+S.horizon || 12)) }) : ''}</p>`;
+  if ($('#ymulti')) $('#ymulti').innerHTML = multiYearTable(f.rollup);
   $('#hc').hidden = !hh.length; if (hh.length) Charts.year($('#hc'), hr, short, yearNames());
+  renderPlanHub(f, hr, lsumHtml);
   if (tab === 'report') buildReport();
   persist();
 }
 function buildReport() {
-  const p = P(), b = Engine.budget(S.cats, p.income), sc = Engine.score(p, b), gs = goalsCalc(p), f = fc(), L = Engine.levels(LP()), cur = L.indexOf(false), k = Engine.kpis(p);
+  const p = P(), b = Engine.budget(S.cats, p.income), sc = Engine.score(p, b, S.quiz), gs = goalsCalc(p), f = fc(), L = Engine.levels(LP()), cur = L.indexOf(false), k = Engine.kpis(p);
   const shot = (fn, w, h) => { try { const c = document.createElement('canvas'); c.width = w; c.height = h; Charts.light = true; fn(c); Charts.light = false; return `<img alt="" src="${c.toDataURL()}">`; } catch { Charts.light = false; return ''; } };
   const grd = sc.total >= 80 ? 'a' : sc.total >= 60 ? 'b' : sc.total >= 40 ? 'c' : 'd', parts = catParts();
   $('#report').innerHTML = `<div class="rh"><span class="mark dark"><i></i><i></i><i></i></span><div><h1>${t('title')} · ${t('r_doc')}</h1><small>${t('r_date', { d: new Date().toLocaleDateString(lang) })}</small></div></div>
@@ -132,8 +191,9 @@ function buildReport() {
 <h2>${t('r_budget')}</h2><table><tr><th>${t('cat_col')}</th><th>${t('amt_col')}</th><th>${t('pct_col')}</th></tr>${S.cats.map(c => `<tr><td>${esc(catName(c))}</td><td>${money(num(c.amount))}</td><td>${p.income ? Math.round(num(c.amount) / p.income * 100) : 0}%</td></tr>`).join('')}</table>${parts.length ? shot(c => Charts.donut(c, parts, money), 800, Math.max(300, parts.length * 26 + 70)) : ''}${shot(c => drawBars3(c, b), 800, 190)}
 ${p.debts.some(d => d.balance > 0) ? `<h2>${t('r_debts')}</h2><table><tr><th>${t('d_name')}</th><th>${t('d_balance')}</th><th>${t('d_rate')}</th><th>${t('d_min')}</th></tr>${S.debts.map(d => `<tr><td>${esc(d.name)}</td><td>${money(num(d.balance))}</td><td>${num(d.rate)}%</td><td>${money(num(d.min))}</td></tr>`).join('')}</table>` : ''}
 ${gs.length ? `<h2>${t('r_goals')}</h2><table><tr><th>${t('g_name')}</th><th>${t('g_target')}</th><th>${t('g_have')}</th><th>${t('g_need')}</th><th>${t('g_plan')}</th><th></th></tr>${gs.map(g => `<tr><td>${esc(g.name)}</td><td>${money(g.target)}</td><td>${money(g.current)}</td><td>${money(g.need)}</td><td>${money(g.planned)}</td><td>${t('g_' + g.status)}</td></tr>`).join('')}</table>${shot(c => drawGoalBars(c, gs), 800, Math.max(120, gs.length * 58 + 24))}` : ''}
-<h2>${t('r_year')}</h2><p>${t('y_sum', { i: money(f.inc), e: money(f.exp), n: money(f.inc - f.exp) })} ${t('y_low', { v: money(f.low.balance), m: mlabel(f.low.ym, 1) })}</p>${shot(c => Charts.year(c, yrows(f), short, yearNames()), 800, 340)}
-<h2>${t('r_plan')}</h2><ol>${L.map((d, i) => `<li>${d ? '✓ ' : i === cur ? '→ ' : ''}${t('l' + (i + 1) + 't')}</li>`).join('')}</ol><p><small>${t('disc')}</small></p>`;
+<h2>${t('r_year')}</h2><p>${t('y_sum', { i: money(f.inc), e: money(f.exp), n: money(f.inc - f.exp) })} ${t('y_low', { v: money(f.low.balance), m: mlabel(f.low.ym, 1) })}</p>${multiYearTable(f.rollup)}${shot(c => Charts.year(c, yrows(f), short, yearNames()), 800, 340)}
+<h2>${t('r_plan')}</h2><ol>${L.map((d, i) => `<li>${d ? '✓ ' : i === cur ? '→ ' : ''}${t('l' + (i + 1) + 't')}</li>`).join('')}</ol>
+${(S.actions && S.actions.length) ? `<ul>${S.actions.map(a => `<li>${a.done ? '✓' : '☐'} ${esc(a.title)} (${a.ym ? mlabel(a.ym, 1) : ''}${num(a.amount) ? ' · ' + money(a.amount) : ''})</li>`).join('')}</ul>` : ''}<p><small>${t('disc')}</small></p>`;
 }
 // ---------- navigation, audio, events ----------
 function go(name) { tab = name; $$('[data-view]').forEach(s => s.classList.toggle('on', s.dataset.view === name)); $$('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === name ? 'page' : 'false')); if (name === 'report') buildReport(); window.scrollTo(0, 0); }
@@ -153,23 +213,44 @@ async function tour() {
   touring = false; $('#tour').textContent = t('tour');
 }
 function demo() {
-  const n = nowYM(), a = k => Engine.addMonths(n, k);
-  S = { ...fresh(), income: 2200, savings: 900, invested: 300, debts: [{ name: t('dd1'), balance: 1800, rate: 28, min: 60 }, { name: t('dd2'), balance: 600, rate: 12, min: 35 }],
+  const n = nowYM(), a = k => Engine.addMonths(n, k), yr = curYear();
+  S = { ...fresh(), income: 2200, savings: 900, invested: 300, quiz: { save: '50', run: '50', debt: '50', bal: '100', inv: '50' }, quizOpen: false, ledgerYear: yr, horizon: 36, incGrowth: 3, inflation: 3,
+    debts: [{ name: t('dd1'), balance: 1800, rate: 28, min: 60 }, { name: t('dd2'), balance: 600, rate: 12, min: 35 }],
     cats: mk([['housing', 520, 'need'], ['food', 380, 'need'], ['transport', 160, 'need'], ['utilities', 130, 'need'], ['health', 60, 'need'], ['fun', 150, 'want'], ['shopping', 110, 'want'], ['other', 90, 'want']]),
     goals: [{ name: t('dg1'), target: 7000, current: 900, date: a(18), monthly: '' }, { name: t('dg2'), target: 1200, current: 200, date: a(8), monthly: '' }, { name: t('dg3'), target: 15000, current: 0, date: a(60), monthly: 200 }],
-    special: [{ name: t('ds1'), ym: a(1), amount: 250, kind: 'exp' }, { name: t('ds2'), ym: a(2), amount: 400, kind: 'inc' }, { name: t('ds3'), ym: a(6), amount: 600, kind: 'exp' }],
-    hist: Object.fromEntries(Array.from({ length: 12 }, (_, i) => [a(i - 12), { income: 2100 + (i * 37) % 100, expenses: 1650 + (i * 53) % 260 + (i === 11 ? 300 : 0) }])) };
+    special: [{ name: t('ds1'), ym: a(1), amount: 250, kind: 'exp', freq: 'yearly' }, { name: t('ds2'), ym: a(2), amount: 400, kind: 'inc', freq: 'yearly' }, { name: t('ds3'), ym: a(6), amount: 600, kind: 'exp', freq: 'yearly' }],
+    actions: [{ title: 'Build $1,000 starter emergency fund', ym: a(1), amount: 100, done: false },
+      { title: 'Attack 28% credit card using Avalanche method', ym: a(4), amount: 500, done: false },
+      { title: 'Set aside monthly sinking fund for annual Holiday & Tuition expenses', ym: a(6), amount: 71, done: false }],
+    hist: Object.fromEntries(yearMonths(yr).map((ym, i) => [ym, { income: 2150 + (i * 37) % 120 + (i === 11 ? 400 : 0), expenses: 1600 + (i * 53) % 240 + (i === 11 ? 250 : 0) }])) };
   drawLists(); renderAll();
 }
 document.addEventListener('input', e => {
   const el = e.target;
-  if (el.dataset.b) { setPath(el.dataset.b, el.value); renderAll(); } else if (el.id === 'gsel') { gsel = +el.value; renderAll(); }
+  if (el.dataset.b) { setPath(el.dataset.b, el.value); renderAll(); }
+  else if (el.id === 'gsel') { gsel = +el.value; renderAll(); }
+  else if (el.id === 'lyr') { S.ledgerYear = +el.value; drawLists(); renderAll(); }
+  else if (el.id === 'yhor') { S.horizon = +el.value; renderAll(); }
+  else if (el.id === 'yincg') { S.incGrowth = +el.value || 0; renderAll(); }
+  else if (el.id === 'yinf') { S.inflation = +el.value || 0; renderAll(); }
+});
+document.addEventListener('change', e => {
+  const el = e.target;
+  if (el.dataset.actChk !== undefined) { const idx = +el.dataset.actChk; if (S.actions[idx]) { S.actions[idx].done = el.checked; renderAll(); } }
 });
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
   if (d.tab) go(d.tab); else if (d.go) go(d.go);
   else if (d.del) { const [k, i] = d.del.split('.'); S[k].splice(+i, 1); drawLists(); renderAll(); }
   else if (d.add) { S[d.add].push(ADD[d.add]()); drawLists(); renderAll(); }
+  else if (b.id === 'quiz-btn') { S.quizOpen = !S.quizOpen; drawQuiz(); persist(); }
+  else if (b.id === 'quiz-done') { S.quizOpen = false; drawQuiz(); persist(); }
+  else if (b.id === 'lfill' || b.id === 'p-fill') fillLedgerYear(+S.ledgerYear || curYear());
+  else if (b.id === 'add-task') {
+    const title = $('#nt-title')?.value?.trim(); if (!title) return;
+    S.actions.push({ title, ym: $('#nt-ym')?.value || Engine.addMonths(nowYM(), 1), amount: num($('#nt-amt')?.value), done: false });
+    renderAll();
+  }
   else if (b.id === 'listen') say(nextText); else if (b.id === 'tour') tour(); else if (b.id === 'print') { buildReport(); window.print(); }
   else if (b.id === 'aisum' && window.genReportSummary) window.genReportSummary();
   else if (b.id === 'demo') demo(); else if (b.id === 'reset') { if (confirm(t('reset_q'))) { S = fresh(); drawLists(); renderAll(); } }

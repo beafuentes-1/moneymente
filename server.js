@@ -1,7 +1,14 @@
 // Static server + /api/chat + /api/status: keyword retrieval over knowledge/*.md, answered by Nemotron on a local llama-server (no API key).
 const http = require('http'), fs = require('fs'), path = require('path');
-const root = path.join(__dirname, 'public'), LLAMA = process.env.LLAMA_URL || 'http://localhost:8080/v1/chat/completions';
-const HEALTH = LLAMA.replace(/\/v1\/chat\/completions$/, '/health');
+const root = path.join(__dirname, 'public');
+const LLAMA_URLS = process.env.LLAMA_URL ? [process.env.LLAMA_URL] : ['http://127.0.0.1:8080/v1/chat/completions', 'http://127.0.0.1:9931/v1/chat/completions'];
+let activeLlama = LLAMA_URLS[0];
+async function resolveLlama() {
+  for (const u of LLAMA_URLS) {
+    try { const r = await fetch(u.replace(/\/v1\/chat\/completions$/, '/health'), { signal: AbortSignal.timeout(1200) }); if (r.ok) return (activeLlama = u); } catch {}
+  }
+  return null;
+}
 const types = { '.html': 'text/html', '.css': 'text/css', '.js': 'text/javascript', '.json': 'application/json' };
 const STOP = new Set('the and for you what how does can are with that this from have not que como para una los las del por con mas pero'.split(' '));
 const norm = s => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9 ]/g, ' ');
@@ -57,7 +64,8 @@ function buildPayload(b) {
 async function chat(b) {
   const { body, ctx, best } = buildPayload(b);
   try {
-    const r = await fetch(LLAMA, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(120000), body: JSON.stringify(body) });
+    const url = (await resolveLlama()) || activeLlama;
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(120000), body: JSON.stringify(body) });
     const j = await r.json(), msg = j.choices?.[0]?.message || {};
     const { reply, thinking, action } = parseOutput(msg.content, msg.reasoning_content);
     if (!reply) throw new Error('empty');
@@ -69,7 +77,8 @@ async function streamChat(b, res) {
   res.writeHead(200, { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
   const send = obj => res.write(`data: ${JSON.stringify(obj)}\n\n`);
   try {
-    const r = await fetch(LLAMA, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(120000), body: JSON.stringify({ ...body, stream: true }) });
+    const url = (await resolveLlama()) || activeLlama;
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(120000), body: JSON.stringify({ ...body, stream: true }) });
     if (!r.ok || !r.body) throw new Error('bad_upstream');
     let rawContent = '', rawReasoning = '', buf = '';
     const dec = new TextDecoder();
@@ -97,10 +106,8 @@ async function streamChat(b, res) {
   res.end();
 }
 async function status() {
-  try {
-    const r = await fetch(HEALTH, { signal: AbortSignal.timeout(1500) });
-    return { online: r.ok, model: 'Nemotron 3 Nano 4B' };
-  } catch { return { online: false, model: 'Nemotron 3 Nano 4B' }; }
+  const u = await resolveLlama();
+  return { online: !!u, url: u, model: 'Nemotron 3 Nano 4B' };
 }
 http.createServer(async (q, r) => {
   if (q.method === 'GET' && q.url === '/api/status') {

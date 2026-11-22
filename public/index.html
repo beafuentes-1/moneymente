@@ -8,10 +8,10 @@
 <select id="lang" aria-label="Language"><option value="en">English</option><option value="es">Español</option></select></div></header>
 <main>
 <section data-view="overview" class="on"><div class="hero">
-<article id="score" class="card glow"><h2 data-i18n="score_t"></h2><div id="gauge"></div><ul id="parts" class="meters"></ul></article>
+<article id="score" class="card glow"><div class="hd"><h2 data-i18n="score_t"></h2><button class="ghost" id="quiz-btn" data-i18n="q_btn"></button></div><div id="quiz-banner"></div><div id="gauge"></div><ul id="parts" class="meters"></ul><div id="quiz-box" class="qbox" hidden></div></article>
 <div class="stack"><article id="next" class="card accent"></article><article id="ins" class="card"></article></div></div>
 <div id="kpis"></div>
-<article id="plan" class="card"><h2 data-i18n="plan_t"></h2><ol id="steps" class="timeline"></ol></article></section>
+<article id="plan" class="card"><div class="hd"><h2 data-i18n="plan_t"></h2><button class="ghost" data-tab="year" data-i18n="p_open_yr"></button></div><ol id="steps" class="timeline"></ol><div id="plan-hub" class="two plan-hub"></div></article></section>
 <section data-view="numbers"><div class="two"><div class="stack">
 <article class="card"><div class="hd"><h2 data-i18n="num_in"></h2><span><button class="ghost" id="demo" data-i18n="demo"></button> <button class="ghost" id="reset" data-i18n="reset"></button></span></div>
 <div class="grid3"><label class="f"><span data-i18n="income"></span><input data-b="income" id="income" type="number" min="0"></label><label class="f"><span data-i18n="savings"></span><input data-b="savings" id="savings" type="number" min="0"></label><label class="f"><span data-i18n="invested"></span><input data-b="invested" id="invested" type="number" min="0"></label></div>
@@ -25,10 +25,10 @@
 <div class="stack"><article class="card"><div class="hd"><h2 data-i18n="scen_t"></h2><select id="gsel" aria-label="Goal"></select></div><canvas id="gc" width="800" height="320"></canvas><small data-i18n="scen_note"></small></article>
 <article class="card"><h2 data-i18n="ret_t"></h2><div id="retctl"></div><canvas id="rc" width="800" height="300"></canvas><p id="retfin" class="hl"></p></article></div></div></section>
 <section data-view="year"><div class="two"><div class="stack">
-<article class="card"><div class="hd"><h2 data-i18n="y_sp"></h2><button class="btn" data-add="special" data-i18n="y_add"></button></div><div id="special"></div></article>
-<article class="card"><h2 data-i18n="y_hist"></h2><small data-i18n="y_hh"></small><div id="hist"></div></article></div>
-<div class="stack"><article class="card"><h2 data-i18n="y_t"></h2><canvas id="yc" width="800" height="340"></canvas><div id="ysum"></div></article>
-<article class="card"><h2 data-i18n="y_hist"></h2><canvas id="hc" width="800" height="300"></canvas></article></div></div></section>
+<article class="card"><div class="hd"><h2 data-i18n="y_sp"></h2><button class="btn" data-add="special" data-i18n="y_add"></button></div><small data-i18n="y_sp_note"></small><div id="special"></div></article>
+<article class="card"><div class="hd"><h2 data-i18n="y_hist"></h2><div class="acts"><select id="lyr" aria-label="Year"></select><button class="ghost" id="lfill" data-i18n="y_fill"></button></div></div><small data-i18n="y_hh"></small><div id="lsum" class="hl"></div><div id="hist"></div></article></div>
+<div class="stack"><article class="card"><div class="hd"><h2 data-i18n="y_t"></h2><div class="acts"><label class="f-inl"><span data-i18n="y_hor"></span><select id="yhor"><option value="12">1Y</option><option value="24">2Y</option><option value="36">3Y</option><option value="60">5Y</option></select></label><label class="f-inl"><span data-i18n="y_incg"></span><input id="yincg" type="number" min="0" max="25" step="0.5" style="width:64px"></label><label class="f-inl"><span data-i18n="y_inf"></span><input id="yinf" type="number" min="0" max="25" step="0.5" style="width:64px"></label></div></div><canvas id="yc" width="800" height="340"></canvas><div id="ysum"></div><div id="ymulti"></div></article>
+<article class="card"><h2 data-i18n="y_hist_ch"></h2><canvas id="hc" width="800" height="300"></canvas></article></div></div></section>
 <section data-view="report"><div class="hd rbar"><h2 data-i18n="r_t"></h2><div class="acts"><button class="ghost" id="aisum" data-i18n="r_ai"></button><button class="btn" id="print" data-i18n="r_print"></button></div></div><article id="report"></article></section>
 </main>
 <footer data-i18n="disc"></footer>

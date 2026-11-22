@@ -19,4 +19,15 @@ const bb = E.budget([{ amount: 800, type: 'need' }], 1000), sc = E.score({ ...p,
 assert.ok(sc.total > 0 && sc.total <= 100 && sc.parts.run === 100);
 const fcs = E.forecast({ income: 1000, savings: 100 }, { total: 800 }, [{ ym: '2026-12', kind: 'exp', amount: 500 }], '2026-11', 3);
 assert.deepStrictEqual(fcs.map(r => r.balance), [-200, 0, 200]);
-console.log('advisor tests passed');
+const scQ = E.score({ ...p, savings: 4800, invested: 0 }, bb, { save: 100, run: 50, debt: 100, bal: 100, inv: 50 });
+assert.strictEqual(scQ.quizDone, true);
+assert.strictEqual(scQ.parts.run, 80); // 100 * 0.6 + 50 * 0.4 = 80
+const fcsMulti = E.forecast({ income: 1000, savings: 0 }, { total: 800 }, [{ ym: '2026-12', kind: 'exp', amount: 600, freq: 'yearly' }], '2026-11', 24);
+assert.strictEqual(fcsMulti[0].spExp, 600);
+assert.strictEqual(fcsMulti[12].spExp, 600);
+const sk = E.sinkingFund([{ ym: '2026-12', kind: 'exp', amount: 600, freq: 'yearly' }], '2026-11', 24);
+assert.strictEqual(sk.totalExp, 1200);
+assert.strictEqual(sk.avgMonthly, 50);
+const roll = E.yearlyRollup(fcsMulti);
+assert.ok(roll.length >= 2);
+console.log('advisor + quiz + multi-year tests passed');

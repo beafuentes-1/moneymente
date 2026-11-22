@@ -25,11 +25,11 @@ const Charts = {
       c.fillStyle = k.w; c.fillRect(L + Math.min(100, r.target) / 100 * w - 2, y - 6, 4, 34); c.fillStyle = k.mu; c.fillText(r.name, 0, y + 16); c.fillText(Math.round(r.v) + '%  /  ' + r.target + '%', L, y + 46); });
   },
   year(cv, rows, fmt, names) {
-    const k = this.k(), c = cv.getContext('2d'), W = cv.width, H = cv.height, P = 62, n = rows.length, hasB = rows.some(r => r.balance != null);
-    const vals = rows.flatMap(r => [r.income, r.expenses, ...(hasB ? [r.balance] : [])]), max = Math.max(...vals, 1), min = Math.min(0, ...vals), span = max - min, Y = v => 12 + (H - 56) * (1 - (v - min) / span), bw = (W - P - 6) / n;
+    const k = this.k(), c = cv.getContext('2d'), W = cv.width, H = cv.height, P = 62, n = rows.length || 1, hasB = rows.some(r => r.balance != null);
+    const vals = rows.flatMap(r => [r.income, r.expenses, ...(hasB ? [r.balance] : [])]), max = Math.max(...vals, 1), min = Math.min(0, ...vals), span = max - min, Y = v => 12 + (H - 56) * (1 - (v - min) / span), bw = (W - P - 6) / n, step = Math.max(1, Math.ceil(n / 12));
     c.clearRect(0, 0, W, H); c.font = '13px ui-monospace,monospace'; c.lineWidth = 1;
     for (let i = 0; i <= 4; i++) { const v = max - span * i / 4, y = Y(v); c.strokeStyle = k.grid; c.beginPath(); c.moveTo(P, y); c.lineTo(W - 6, y); c.stroke(); c.fillStyle = k.mu; c.fillText(fmt(v), 2, y + 4); }
-    rows.forEach((r, i) => { const x = P + i * bw; [[r.income, this.col('#ffffff')], [r.expenses, '#da291c']].forEach(([v, col], j) => { c.fillStyle = col; const y = Y(Math.max(v, 0)); c.fillRect(x + bw * .12 + j * bw * .38, y, bw * .34, Y(0) - y); }); c.fillStyle = k.mu; c.fillText(r.label, x + 2, H - 24); });
+    rows.forEach((r, i) => { const x = P + i * bw; [[r.income, this.col('#ffffff')], [r.expenses, '#da291c']].forEach(([v, col], j) => { c.fillStyle = col; const y = Y(Math.max(v, 0)); c.fillRect(x + bw * .12 + j * bw * .38, y, bw * .34, Y(0) - y); }); if (i % step === 0) { c.fillStyle = k.mu; c.fillText(r.label, x + 2, H - 24); } });
     if (hasB) { c.beginPath(); rows.forEach((r, i) => { const x = P + i * bw + bw / 2, y = Y(r.balance); i ? c.lineTo(x, y) : c.moveTo(x, y); }); c.strokeStyle = '#4aa3ff'; c.lineWidth = 3; c.stroke(); }
     [[names[0], this.col('#ffffff')], [names[1], '#da291c'], ...(hasB ? [[names[2], '#4aa3ff']] : [])].forEach(([nm, col], i) => { c.fillStyle = col; c.fillText('■ ' + nm, P + i * 150, H - 6); });
   }
