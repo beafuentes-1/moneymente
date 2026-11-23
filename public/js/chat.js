@@ -127,10 +127,23 @@ function buildVoices() {
   s.replaceChildren(...vs.map(v => { const o = document.createElement('option'); o.textContent = v.name; o.selected = v.name === cur; return o; }));
   $$('.vc').forEach(e => e.hidden = !vs.length);
 }
+const TAB_CHIPS = {
+  overview: ['c1', 'c5', 'c4', 'c2'],
+  numbers: ['c4', 'c2', 'c_num', 'c1'],
+  goals: ['c_g1', 'c3', 'c_g2', 'c1'],
+  year: ['c_y1', 'c_y2', 'c4', 'c1'],
+  special: ['c_sp1', 'c_sp2', 'c1', 'c5'],
+  report: ['c5', 'c1', 'c_y2', 'c_g1']
+};
+window.updateChatChips = function (activeTab = tab) {
+  const el = $('#chips'); if (!el) return;
+  const list = TAB_CHIPS[activeTab] || TAB_CHIPS.overview;
+  el.innerHTML = list.map(k => `<button class="chip" data-q="${k}">${esc(t(k))}</button>`).join('');
+};
 function onLoaded() {
   $('#q').placeholder = t('chat_ph'); $('#q').setAttribute('aria-label', t('chat_t'));
   $('#thk-lbl')?.setAttribute('title', t('thk_tip'));
-  $('#chips').innerHTML = ['c1', 'c5', 'c4', 'c2'].map(k => `<button class="chip" data-q="${k}">${t(k)}</button>`).join('');
+  window.updateChatChips(tab);
   $('#auto').closest('label').hidden = !canSpeak; buildVoices(); checkAiStatus();
   if (!$('#msgs').children.length) { addMsg('bot', t('hello')); petSay(t('pet_hi')); }
 }

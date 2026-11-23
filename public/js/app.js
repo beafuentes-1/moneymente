@@ -193,7 +193,7 @@ function drawSpecial() {
   if (!spResult) { box.innerHTML = ''; return; }
   const r = spResult, loc = localSummaries(r), ai = spAi && spAi.lang === lang ? spAi : null;
   const sSim = ai?.similar ? [ai.similar] : loc.similar, sDif = ai?.different?.length ? ai.different : loc.different, src = t(ai?.similar || ai?.different?.length ? 'sp_src_ai' : 'sp_src_local');
-  box.innerHTML = `<article class="card glow sp-hero"><h2>${esc(t('sp_head'))}</h2><div class="sp-big"><b>${esc(r.similarPct)}%</b><span>${esc(t('sp_sim', { n: r.similarCount.toLocaleString(lang), total: r.total.toLocaleString(lang) }))}</span></div><p class="hl">${esc(t('sp_special', { pct: r.specialPct }))}</p><p>${esc(t('sp_exact', { n: r.exactCount.toLocaleString(lang), pct: r.exactPct }))}</p><small>${esc(t('sp_rule', { t: r.threshold }))}</small></article>` +
+  box.innerHTML = `<article class="card glow sp-hero"><h2>${esc(t('sp_head'))}</h2><div class="sp-big"><b>${esc(r.similarPct)}%</b><span>${esc(t('sp_sim', { n: r.similarCount.toLocaleString(lang), total: r.total.toLocaleString(lang) }))}</span></div><p class="hl">${esc(t('sp_special', { pct: r.specialPct }))}</p><p>${esc(t('sp_exact', { n: r.exactCount.toLocaleString(lang), pct: r.exactPct }))}</p><small>${esc(t('sp_rule', { t: r.threshold }))}</small><div class="acts" style="margin-top:12px"><button class="btn" id="sp-add-goal">🎯 ${esc(t('sp_goal_btn'))}</button><button class="ghost" id="sp-ask-ai">💬 ${esc(t('sp_ask_btn'))}</button></div></article>` +
     `<div class="two"><article class="card"><h2>${esc(t('sp_top_t'))}</h2><ol class="plist">${r.top.map(personaCard).join('')}</ol><h3>${esc(t('sp_sum_top'))}</h3>${sSim.map(x => `<p>${esc(x)}</p>`).join('')}<small class="mu">${esc(src)}</small></article>` +
     `<article class="card"><h2>${esc(t('sp_bot_t'))}</h2><ol class="plist">${r.bottom.map(personaCard).join('')}</ol><h3>${esc(t('sp_sum_bot'))}</h3>${sDif.map(x => `<p class="sp-line">${esc(x)}</p>`).join('')}<small class="mu">${esc(src)}</small></article></div>`;
 }
@@ -345,7 +345,18 @@ ${gs.length ? `<h2>${t('r_goals')}</h2><table><tr><th>${t('g_name')}</th><th>${t
 ${(S.actions && S.actions.length) ? `<ul>${S.actions.map(a => `<li>${a.done ? '✓' : '☐'} ${esc(actionTitle(a))} (${a.ym ? mlabel(a.ym, 1) : ''}${num(a.amount) ? ' · ' + money(a.amount) : ''})</li>`).join('')}</ul>` : ''}<p><small>${t('disc')}</small></p>`;
 }
 // ---------- navigation, audio, events ----------
-function go(name) { tab = name; $$('[data-view]').forEach(s => s.classList.toggle('on', s.dataset.view === name)); $$('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === name ? 'page' : 'false')); if (name === 'report') buildReport(); window.scrollTo(0, 0); }
+function go(name) { tab = name; $$('[data-view]').forEach(s => s.classList.toggle('on', s.dataset.view === name)); $$('#tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === name ? 'page' : 'false')); if (name === 'report') buildReport(); if (window.updateChatChips) window.updateChatChips(name); window.scrollTo(0, 0); }
+function demoProfile() {
+  return { sex: 'Femenino', age: '28', area: 'urbano', education_level: 'universitario', household_type: 'nuclear', marital_status: 'soltero', languages_spoken: 'español e inglés', department: 'San Salvador', municipality: 'San Salvador Centro', occupation: t('pf_demo_occ'), career_goals_and_ambitions: t('pf_demo_goal') };
+}
+function dlFile(name, mime, text) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: mime })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportLedgerCsv() {
+  const yr = +S.ledgerYear || curYear(), rows = [['Month', 'Income', 'Expenses', 'Net']];
+  for (const r of hrows(yr)) rows.push([r.ym, r.income, r.expenses, r.income - r.expenses]);
+  dlFile(`moneymente-ledger-${yr}.csv`, 'text/csv;charset=utf-8', rows.map(r => r.join(',')).join('\n'));
+}
 function say(text) {
   speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text), vs = speechSynthesis.getVoices(), n = localStorage.getItem('voice_' + lang);
@@ -364,7 +375,7 @@ async function tour() {
 function demo() {
   if (!S.demoMode) { try { localStorage.setItem(DEMO_BACKUP_KEY, JSON.stringify(S)); } catch {} }
   const n = nowYM(), a = k => Engine.addMonths(n, k), yr = curYear();
-  S = { ...fresh(), currency: S.currency || 'USD', demoMode: true, income: 2200, savings: 900, invested: 300, quiz: { save: '50', run: '50', debt: '50', bal: '100', inv: '50' }, quizOpen: false, ledgerYear: yr, horizon: 36, incGrowth: 3, inflation: 3,
+  S = { ...fresh(), profile: demoProfile(), currency: S.currency || 'USD', demoMode: true, income: 2200, savings: 900, invested: 300, quiz: { save: '50', run: '50', debt: '50', bal: '100', inv: '50' }, quizOpen: false, ledgerYear: yr, horizon: 36, incGrowth: 3, inflation: 3,
     debts: [{ name: t('dd1'), balance: 1800, rate: 28, min: 60 }, { name: t('dd2'), balance: 600, rate: 12, min: 35 }],
     cats: mk([['housing', 520, 'need'], ['food', 360, 'need'], ['transport', 140, 'need'], ['utilities', 120, 'need'], ['health', 60, 'need'], ['debts', 95, 'save'], ['savings', 120, 'save'], ['investments', 80, 'save'], ['unexpected', 55, 'need'], ['fun', 130, 'want'], ['shopping', 80, 'want'], ['other', 40, 'want']]),
     goals: [{ name: t('dg1'), target: 7000, current: 900, date: a(18), monthly: '' }, { name: t('dg2'), target: 1200, current: 200, date: a(8), monthly: '' }, { name: t('dg3'), target: 15000, current: 0, date: a(60), monthly: 200 }],
@@ -389,6 +400,10 @@ document.addEventListener('change', e => {
   if (el.dataset.b === 'profile.department') { S.profile.municipality = ''; drawProfile(); persist(); return; }
   if (el.id === 'theme') { applyTheme(el.value); renderAll(); return; }
   if (el.id === 'currency') { S.currency = el.value; renderAll(); return; }
+  if (el.id === 'imp-file' && el.files?.[0]) {
+    el.files[0].text().then(txt => { try { S = normalizeState(JSON.parse(txt)); drawLists(); renderAll(); if (window.petSay) petSay(t('imp_ok')); } catch {} el.value = ''; });
+    return;
+  }
   if (el.dataset.actChk !== undefined) { const idx = +el.dataset.actChk; if (S.actions[idx]) { S.actions[idx].done = el.checked; renderAll(); } }
 });
 document.addEventListener('click', e => {
@@ -397,6 +412,18 @@ document.addEventListener('click', e => {
   else if (d.del) { const [k, i] = d.del.split('.'); S[k].splice(+i, 1); drawLists(); renderAll(); }
   else if (d.add) { S[d.add].push(ADD[d.add]()); drawLists(); renderAll(); }
   else if (b.id === 'pf-submit') submitProfile();
+  else if (b.id === 'pf-demo') { S.profile = demoProfile(); drawProfile(); persist(); submitProfile(); }
+  else if (b.id === 'sp-add-goal') {
+    const occ = (S.profile?.occupation || '').trim();
+    const gName = occ ? `${t('sp_goal_prefix')}: ${occ.slice(0, 32)}` : t('sp_goal_default');
+    const targ = Math.max(1500, Math.round((P().income || 1200) * 3));
+    S.goals.push({ name: gName, target: targ, current: 0, date: Engine.addMonths(nowYM(), 18), monthly: '' });
+    gsel = S.goals.length - 1; drawLists(); renderAll(); go('goals'); if (window.petSay) petSay(t('sp_goal_added'));
+  }
+  else if (b.id === 'sp-ask-ai') { $('#chat').hidden = false; ask(t('c_sp2')); }
+  else if (b.id === 'lexp') exportLedgerCsv();
+  else if (b.id === 'exp-json') dlFile('moneymente-plan.json', 'application/json;charset=utf-8', JSON.stringify(S, null, 2));
+  else if (b.id === 'imp-json') $('#imp-file')?.click();
   else if (b.id === 'quiz-btn') { S.quizOpen = !S.quizOpen; drawQuiz(); persist(); }
   else if (b.id === 'quiz-done') {
     const score = Engine.score(P(), Engine.budget(S.cats, P().income), S.quiz);

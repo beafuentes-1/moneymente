@@ -22,6 +22,23 @@ const Charts = {
     if (c.roundRect) c.roundRect(x, y, Math.max(0, w), Math.max(0, h), rad);
     else c.rect(x, y, Math.max(0, w), Math.max(0, h));
   },
+  bindHover(cv, P, fn) {
+    if (this.light || !cv || !cv.parentElement) return;
+    cv._hoverFn = fn; cv._hoverP = P;
+    if (cv._hoverBound) return;
+    cv._hoverBound = true;
+    const hud = document.createElement('div'); hud.className = 'cv-hud'; hud.hidden = true;
+    cv.after(hud);
+    cv.addEventListener('mousemove', e => {
+      if (!cv._hoverFn) return;
+      const rect = cv.getBoundingClientRect(), scaleX = cv.width / Math.max(1, rect.width);
+      const px = (e.clientX - rect.left) * scaleX, span = Math.max(1, cv.width - cv._hoverP - 12);
+      const ratio = Math.max(0, Math.min(1, (px - cv._hoverP) / span));
+      const text = cv._hoverFn(ratio);
+      if (text) { hud.textContent = text; hud.hidden = false; }
+    });
+    cv.addEventListener('mouseleave', () => { hud.hidden = true; });
+  },
   line(cv, series, fmt) {
     const k = this.k(), c = cv.getContext('2d'), W = cv.width, H = cv.height, P = 66;
     const n = Math.max(...series.map(s => s.d.length), 1), max = Math.max(...series.flatMap(s => s.d), 1);
@@ -58,6 +75,10 @@ const Charts = {
       }
       c.restore();
       c.fillStyle = col; c.fillText('◆ ' + s.name, P + j * 195, H - 8);
+    });
+    this.bindHover(cv, P, ratio => {
+      const idx = Math.min(n - 1, Math.max(0, Math.round(ratio * (n - 1))));
+      return `[ #${idx} ]  ` + series.map(s => `${s.name}: ${fmt(s.d[Math.min(idx, s.d.length - 1)] ?? 0)}`).join('  ·  ');
     });
   },
   donut(cv, parts, fmt) {
@@ -148,6 +169,11 @@ const Charts = {
     }
     [[names[0], k.c1], [names[1], k.c4], ...(hasB ? [[names[2], k.c2]] : [])].forEach(([nm, col], i) => {
       c.fillStyle = col; c.fillText('◆ ' + nm, P + i * 165, H - 7);
+    });
+    this.bindHover(cv, P, ratio => {
+      const idx = Math.min(rows.length - 1, Math.max(0, Math.floor(ratio * rows.length))), r = rows[idx];
+      if (!r) return '';
+      return `[ ${r.label} ]  ${names[0]}: ${fmt(r.income)}  ·  ${names[1]}: ${fmt(r.expenses)}` + (hasB ? `  ·  ${names[2]}: ${fmt(r.balance)}` : '');
     });
   }
 };
