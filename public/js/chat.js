@@ -21,6 +21,7 @@ function facts() {
     storedYearLedger: { year: S.ledgerYear, monthsLogged: hh.length, totalIncome: hr.reduce((s, r) => s + r.income, 0), totalExpenses: hr.reduce((s, r) => s + r.expenses, 0) },
     multiYearOutlook: f.rollup,
     actionTasks: (S.actions || []).map(a => ({ title: a.title, ym: a.ym, amount: num(a.amount), done: !!a.done })),
+    userPersona: S.profile && Object.values(S.profile).some(Boolean) ? { ...S.profile, similarityPct: typeof spResult === 'object' && spResult ? spResult.similarPct : null, specialPct: typeof spResult === 'object' && spResult ? spResult.specialPct : null } : null,
     forecast: { horizonMonths: +S.horizon || 36, lowestBalance: Math.round(f.low.balance), lowestMonth: f.low.ym, deficitMonths: f.deficits } };
 }
 function applyPlanAction(act) {
