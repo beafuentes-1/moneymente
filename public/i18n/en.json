@@ -423,5 +423,22 @@
  "c_y1": "How much do I need for my sinking fund?",
  "c_y2": "How does my multi-year forecast look?",
  "c_sp1": "Compare my profile with El Salvador entrepreneurs",
- "c_sp2": "Suggest a savings goal for my career ambition"
+ "c_sp2": "Suggest a savings goal for my career ambition",
+ "aria_mic": "Voice input",
+ "aria_clear_chat": "Clear chat history",
+ "mic_listen": "Listening…",
+ "st_title": "⚡ What-If Stress-Test Simulator",
+ "st_desc": "Test how your plan holds up against surprises without changing your saved data:",
+ "st_s1": "⚡ $500 Shock",
+ "st_s2": "📉 1-Mo Income Loss",
+ "st_s3": "🚀 Trim Wants 20%",
+ "st_r1": "With a {amt} emergency shock next month: Lowest balance shifts from {b0} to {b1} ({status}).",
+ "st_r2": "With a 1-month income pause ({amt}): Lowest balance shifts from {b0} to {b1} ({status}). Current runway covers {run} mo.",
+ "st_r3": "Trimming wants by 20% frees +{save}/mo: grows +{gain3y} extra over 3 years{debtMsg}.",
+ "st_debt_faster": " and pays off debt {m} month(s) faster",
+ "st_ok": "Resilient — stays positive",
+ "st_warn": "Deficit risk — boost emergency fund",
+ "r_special": "Community Benchmark (NVIDIA Nemotron-Personas El Salvador)",
+ "pet_quiz_ok": "Health Score unlocked! 🎯",
+ "pet_task_ok": "Milestone completed! ✅"
 }

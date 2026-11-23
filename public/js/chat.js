@@ -140,9 +140,21 @@ window.updateChatChips = function (activeTab = tab) {
   const list = TAB_CHIPS[activeTab] || TAB_CHIPS.overview;
   el.innerHTML = list.map(k => `<button class="chip" data-q="${k}">${esc(t(k))}</button>`).join('');
 };
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, listening = false;
+function toggleMic() {
+  if (!SR) return;
+  if (listening && rec) { rec.stop(); return; }
+  rec = new SR(); rec.lang = lang === 'es' ? 'es-SV' : 'en-US'; rec.interimResults = false;
+  listening = true; $('#mic').textContent = '⏹'; $('#q').placeholder = t('mic_listen');
+  rec.onresult = e => { const tr = e.results?.[0]?.[0]?.transcript?.trim(); if (tr) { $('#q').value = tr; ask(tr); } };
+  rec.onend = rec.onerror = () => { listening = false; if ($('#mic')) $('#mic').textContent = '🎙️'; if ($('#q')) $('#q').placeholder = t('chat_ph'); };
+  try { rec.start(); } catch { rec.onend(); }
+}
 function onLoaded() {
   $('#q').placeholder = t('chat_ph'); $('#q').setAttribute('aria-label', t('chat_t'));
   $('#thk-lbl')?.setAttribute('title', t('thk_tip'));
+  if ($('#mic')) $('#mic').hidden = !SR;
   window.updateChatChips(tab);
   $('#auto').closest('label').hidden = !canSpeak; buildVoices(); checkAiStatus();
   if (!$('#msgs').children.length) { addMsg('bot', t('hello')); petSay(t('pet_hi')); }
@@ -150,6 +162,9 @@ function onLoaded() {
 if (canSpeak) speechSynthesis.onvoiceschanged = buildVoices;
 $('#pet').onclick = () => { const c = $('#chat'); c.hidden = !c.hidden; $('#bubble').hidden = true; if (!c.hidden) { $('#q').focus(); checkAiStatus(); } };
 $('#close').onclick = () => $('#chat').hidden = true;
+if ($('#chat-clr')) $('#chat-clr').onclick = () => { hist = []; $('#msgs').innerHTML = ''; addMsg('bot', t('hello')); $('#q').focus(); };
+if ($('#mic')) $('#mic').onclick = toggleMic;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#chat').hidden) $('#chat').hidden = true; });
 $('#send').onclick = () => ask($('#q').value);
 $('#q').onkeydown = e => { if (e.key === 'Enter') ask($('#q').value); };
 $('#chips').onclick = e => { const b = e.target.closest('[data-q]'); if (b) ask(t(b.dataset.q)); };

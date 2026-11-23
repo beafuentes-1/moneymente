@@ -423,5 +423,22 @@
  "c_y1": "¿Cuánto debo apartar para gastos futuros?",
  "c_y2": "¿Cómo se ve mi proyección multianual?",
  "c_sp1": "Compara mi perfil con emprendedores de El Salvador",
- "c_sp2": "Sugiéreme una meta de ahorro para mi carrera"
+ "c_sp2": "Sugiéreme una meta de ahorro para mi carrera",
+ "aria_mic": "Entrada de voz",
+ "aria_clear_chat": "Borrar historial del chat",
+ "mic_listen": "Escuchando…",
+ "st_title": "⚡ Simulador de Pruebas de Estrés (¿Qué pasaría si…?)",
+ "st_desc": "Prueba cómo resiste tu plan ante imprevistos sin alterar tus datos guardados:",
+ "st_s1": "⚡ Imprevisto $500",
+ "st_s2": "📉 1 Mes sin Ingresos",
+ "st_s3": "🚀 Recortar Gustos 20%",
+ "st_r1": "Con un imprevisto de {amt} el próximo mes: Tu saldo más bajo pasa de {b0} a {b1} ({status}).",
+ "st_r2": "Con 1 mes sin ingresos ({amt}): Tu saldo más bajo pasa de {b0} a {b1} ({status}). Tu autonomía cubre {run} meses.",
+ "st_r3": "Recortar gustos un 20% libera +{save}/mes: suma +{gain3y} extra en 3 años{debtMsg}.",
+ "st_debt_faster": " y liquida tus deudas {m} mes(es) antes",
+ "st_ok": "Resiliente — saldo positivo",
+ "st_warn": "Riesgo de déficit — refuerza tu fondo",
+ "r_special": "Comparativa Comunitaria (NVIDIA Nemotron-Personas El Salvador)",
+ "pet_quiz_ok": "¡Puntaje de salud desbloqueado! 🎯",
+ "pet_task_ok": "¡Paso completado! ✅"
 }

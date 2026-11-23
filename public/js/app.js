@@ -174,7 +174,26 @@ function drawProfile() {
     `<label class="f"><span>${esc(t('pf_career_goals_and_ambitions'))}</span><textarea data-b="profile.career_goals_and_ambitions" rows="3" maxlength="1000" placeholder="${esc(t('pf_goals_ph'))}" aria-label="${esc(t('pf_career_goals_and_ambitions'))}">${esc(S.profile.career_goals_and_ambitions)}</textarea></label>`;
 }
 // ---------- Special %: compare the survey profile with the Nemotron personas (server side) ----------
-let spResult = null, spAi = null, spRun = 0;
+let spResult = null, spAi = null, spRun = 0, prevDoneCount = -1, activeStress = 's1';
+function renderStressTest(p, b, f, k) {
+  const box = $('#stress-box'); if (!box) return;
+  const b0 = f.low.balance, stTxt = v => v >= 0 ? t('st_ok') : t('st_warn');
+  let msg = '';
+  if (activeStress === 's1') {
+    const b1 = b0 - 500;
+    msg = t('st_r1', { amt: money(500), b0: money(b0), b1: money(b1), status: stTxt(b1) });
+  } else if (activeStress === 's2') {
+    const b1 = b0 - p.income;
+    msg = t('st_r2', { amt: money(p.income), b0: money(b0), b1: money(b1), status: stTxt(b1), run: k.runway.toFixed(1) });
+  } else {
+    const cut = Math.max(25, Math.round(b.wants * 0.2)), gain3y = Math.round(Engine.fv(0, cut, 36, 6));
+    const curEx = S.extra === '' ? Math.round(Math.max(0, k.surplus)) : num(S.extra);
+    const av0 = Engine.payoff(p.debts, curEx, 'avalanche'), av1 = Engine.payoff(p.debts, curEx + cut, 'avalanche');
+    const savedM = (av0.ok && av1.ok && av0.months > av1.months) ? t('st_debt_faster', { m: av0.months - av1.months }) : '';
+    msg = t('st_r3', { save: money(cut), gain3y: money(gain3y), debtMsg: savedM });
+  }
+  box.innerHTML = `<h3>${esc(t('st_title'))}</h3><small>${esc(t('st_desc'))}</small><div class="acts" style="margin:8px 0">${['s1', 's2', 's3'].map(id => `<button class="${activeStress === id ? 'btn' : 'ghost'}" data-stress="${id}">${esc(t('st_' + id))}</button>`).join('')}</div><p class="hl" style="margin:0">${esc(msg)}</p>`;
+}
 const pfVal = (f, v) => PF_SEL[f] ? t(`pf_o_${f}_${PF_SLUG[v] || v}`) : v;
 const uniq = a => [...new Set(a)], joinList = a => a.join(', ');
 const range = a => [Math.min(...a), Math.max(...a)];
@@ -323,9 +342,13 @@ function renderAll() {
   const sk = f.sink;
   $('#ysum').innerHTML = `<p class="hl">${t('y_sum', { i: money(f.inc), e: money(f.exp), n: money(f.inc - f.exp) })} ${t('y_low', { v: money(f.low.balance), m: mlabel(f.low.ym, 1) })}${f.deficits ? ' ' + t('y_def', { n: f.deficits }) : ''}${sk.totalExp > 0 ? '<br>' + esc(t('p_sink_d', { tot: money(sk.totalExp), m: +S.horizon || 36, avg: money(sk.avgMonthly), pk: money(sk.peakMonthly) })) : ''}${hh.length ? '<br>' + t('y_cmp', { h: money(avg(hh, 'expenses')), f: money(f.exp / (+S.horizon || 12)) }) : ''}</p>`;
   if ($('#ymulti')) $('#ymulti').innerHTML = multiYearTable(f.rollup);
+  renderStressTest(p, b, f, k);
   $('#hc').hidden = !hh.length; if (hh.length) Charts.year($('#hc'), hr, short, yearNames());
   labelChart('hc', t('chart_ledger', { year: S.ledgerYear, months: hh.length, income: money(hInc), expenses: money(hExp) }));
   renderPlanHub(f, hr, lsumHtml);
+  const doneCount = L.filter(Boolean).length;
+  if (prevDoneCount >= 0 && doneCount > prevDoneCount && window.petSay) petSay(t('pet_up'));
+  prevDoneCount = doneCount;
   if (tab === 'report') buildReport();
   persist();
 }
@@ -333,6 +356,7 @@ function buildReport() {
   const p = P(), b = Engine.budget(S.cats, p.income), sc = Engine.score(p, b, S.quiz), gs = goalsCalc(p), f = fc(), L = Engine.levels(LP()), cur = L.indexOf(false), k = Engine.kpis(p);
   const shot = (fn, w, h) => { try { const c = document.createElement('canvas'); c.width = w; c.height = h; Charts.light = true; fn(c); Charts.light = false; return `<img alt="" src="${c.toDataURL()}">`; } catch { Charts.light = false; return ''; } };
   const grd = sc.total >= 80 ? 'a' : sc.total >= 60 ? 'b' : sc.total >= 40 ? 'c' : 'd', parts = catParts(), reportPlan = Engine.actionPlan(p, gs);
+  const spReportHtml = spResult ? `<h2>${esc(t('r_special'))}</h2><p><b>${esc(spResult.similarPct)}%</b> ${esc(t('sp_sim', { n: spResult.similarCount.toLocaleString(lang), total: spResult.total.toLocaleString(lang) }))} · ${esc(t('sp_special', { pct: spResult.specialPct }))}</p>${(spAi?.similar ? [spAi.similar] : localSummaries(spResult).similar).map(x => `<p>${esc(x)}</p>`).join('')}` : '';
   $('#report').innerHTML = `<div class="rh"><svg class="report-logo" viewBox="0 0 40 40" role="img" aria-label="MoneyMente"><polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="none" stroke="#4d7c0f" stroke-width="2.6"/><circle cx="20" cy="20" r="11" fill="none" stroke="#0284c7" stroke-width="1.3" stroke-dasharray="4 2"/><path d="M12 25l5-6 4 3 7-9" fill="none" stroke="#4d7c0f" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="28" cy="13" r="2.4" fill="#0284c7"/></svg><div><h1>${t('title')} · ${t('r_doc')}</h1><small>${t('r_date', { d: new Date().toLocaleDateString(lang, { year: 'numeric', month: '2-digit', day: '2-digit' }) })}</small></div></div>
 <div id="ai-sum-box" class="ai-sum" ${S.aiSummary ? '' : 'hidden'}><b>✨ ${t('r_ai_h')}:</b> <span id="ai-sum-txt">${esc(S.aiSummary || '')}</span></div>
 <h2>${t('r_score')}: ${sc.quizDone ? `${sc.total}/100 (${t('gr_' + grd)})` : esc(t('score_pending'))}</h2>${sc.quizDone ? `<table>${Object.entries(sc.parts).map(([x, v]) => `<tr><td>${t('sc_' + x)}</td><td>${Math.round(v)}/100</td></tr>`).join('')}</table>` : ''}
@@ -341,6 +365,7 @@ function buildReport() {
 ${p.debts.some(d => d.balance > 0) ? `<h2>${t('r_debts')}</h2><table><tr><th>${t('d_name')}</th><th>${t('d_balance')}</th><th>${t('d_rate')}</th><th>${t('d_min')}</th></tr>${S.debts.map(d => `<tr><td>${esc(d.name)}</td><td>${money(num(d.balance))}</td><td>${num(d.rate)}%</td><td>${money(num(d.min))}</td></tr>`).join('')}</table>` : ''}
 ${gs.length ? `<h2>${t('r_goals')}</h2><table><tr><th>${t('g_name')}</th><th>${t('g_target')}</th><th>${t('g_have')}</th><th>${t('g_need')}</th><th>${t('g_plan')}</th><th></th></tr>${gs.map(g => `<tr><td>${esc(g.name)}</td><td>${money(g.target)}</td><td>${money(g.current)}</td><td>${money(g.need)}</td><td>${money(g.planned)}</td><td>${t('g_' + g.status)}</td></tr>`).join('')}</table>${shot(c => drawGoalBars(c, gs), 800, Math.max(120, gs.length * 58 + 24))}` : ''}
 <h2>${t('r_year')}</h2><p>${t('y_sum', { i: money(f.inc), e: money(f.exp), n: money(f.inc - f.exp) })} ${t('y_low', { v: money(f.low.balance), m: mlabel(f.low.ym, 1) })}</p>${multiYearTable(f.rollup)}${shot(c => Charts.year(c, yrows(f), short, yearNames()), 800, 340)}
+${spReportHtml}
 <h2>${t('r_plan')}</h2><ol>${reportPlan.map(step => { const copy = planCopy(step); return `<li><b>${esc(copy.title)}:</b> ${esc(copy.description)}</li>`; }).join('')}</ol>
 ${(S.actions && S.actions.length) ? `<ul>${S.actions.map(a => `<li>${a.done ? '✓' : '☐'} ${esc(actionTitle(a))} (${a.ym ? mlabel(a.ym, 1) : ''}${num(a.amount) ? ' · ' + money(a.amount) : ''})</li>`).join('')}</ul>` : ''}<p><small>${t('disc')}</small></p>`;
 }
@@ -404,11 +429,12 @@ document.addEventListener('change', e => {
     el.files[0].text().then(txt => { try { S = normalizeState(JSON.parse(txt)); drawLists(); renderAll(); if (window.petSay) petSay(t('imp_ok')); } catch {} el.value = ''; });
     return;
   }
-  if (el.dataset.actChk !== undefined) { const idx = +el.dataset.actChk; if (S.actions[idx]) { S.actions[idx].done = el.checked; renderAll(); } }
+  if (el.dataset.actChk !== undefined) { const idx = +el.dataset.actChk; if (S.actions[idx]) { S.actions[idx].done = el.checked; renderAll(); if (el.checked && window.petSay) petSay(t('pet_task_ok')); } }
 });
 document.addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return; const d = b.dataset;
   if (d.tab) go(d.tab); else if (d.go) go(d.go);
+  else if (d.stress) { activeStress = d.stress; renderAll(); }
   else if (d.del) { const [k, i] = d.del.split('.'); S[k].splice(+i, 1); drawLists(); renderAll(); }
   else if (d.add) { S[d.add].push(ADD[d.add]()); drawLists(); renderAll(); }
   else if (b.id === 'pf-submit') submitProfile();
@@ -428,7 +454,7 @@ document.addEventListener('click', e => {
   else if (b.id === 'quiz-done') {
     const score = Engine.score(P(), Engine.budget(S.cats, P().income), S.quiz);
     if (!score.quizDone) { S.quizOpen = true; $('#quiz-banner').innerHTML = `<span>${esc(t('score_pending'))}</span>`; drawQuiz(); return; }
-    S.quizOpen = false; drawQuiz(); renderAll();
+    S.quizOpen = false; drawQuiz(); renderAll(); if (window.petSay) petSay(t('pet_quiz_ok'));
   }
   else if (b.id === 'lfill' || b.id === 'p-fill') fillLedgerYear(+S.ledgerYear || curYear());
   else if (b.id === 'add-task') {
