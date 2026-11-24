@@ -15,7 +15,7 @@ MoneyMente is a bilingual (English / Spanish) personal financial advisor that ru
 |---|---|
 | Any project, on a useful topic | Personal finance: budgeting, debt, emergency funds, goals, long-term planning |
 | A bot that answers questions about the site, with no API key | Buck answers from the app's knowledge files plus your live numbers, through a local `llama-server` |
-| Uses Nemotron | NVIDIA Nemotron 3 Nano 4B (GGUF) on llama.cpp |
+| Uses Nemotron | NVIDIA Nemotron 3 Nano 4B (GGUF) on llama.cpp for the assistant, and the NVIDIA Nemotron-Personas-El-Salvador dataset for the Special % benchmark |
 | Public repository with a full README | This repository, in English and Spanish |
 
 ## Features
@@ -26,11 +26,15 @@ MoneyMente is a bilingual (English / Spanish) personal financial advisor that ru
 - **Goals**: any number of goals with a target, date and monthly plan. Shows the amount needed per month, a status (on track, close, behind), a "how close are you?" chart and conservative / base / optimistic scenarios, plus a retirement and compound interest projection.
 - **Year plan**: a 1, 2, 3 or 5-year forecast with assumptions for income growth and inflation, special income and expenses (once, monthly, quarterly or yearly), a month-by-month ledger of your real income and expenses, a yearly summary table, your lowest-balance month and a **sinking fund** suggestion (how much to set aside each month for future expenses).
 - **Action checklist**: dated tasks with checkboxes for the milestones in your plan.
-- **Report**: a printable summary (use **Print / Save as PDF**) with an optional **AI executive summary** written by Buck.
-- **Buck, the AI assistant**: a coin-bot mascot with a streaming chat, an online/offline status badge and a **Deep Think** switch that shows the model's reasoning in a collapsible block. Buck can propose changes to your plan (set income, a category, add a goal, debt or special item) and nothing changes until you press **Apply**.
+- **What-If stress-test simulator**: try a $500 shock, a one-month income loss or trimming wants by 20% and see how your lowest balance, runway and debt payoff change, without touching your saved data.
+- **Special % tab**: answer a short profile survey and compare yourself with synthetic Salvadoran people from the NVIDIA Nemotron-Personas dataset: how many look like you, your **Special %**, the 5 most and 5 least similar profiles with summaries (written by Nemotron when it is online), an entrepreneurs-by-district heat map of El Salvador, a one-click demo persona, and a **career-to-goal bridge** that turns your career profile into a savings goal or a question for Buck.
+- **Report**: a printable summary (use **Print / Save as PDF**) with an optional **AI executive summary** written by Buck and a Community Benchmark section with your Special % results.
+- **Buck, the AI assistant**: a coin-bot mascot with a streaming chat, **voice input** (speak your question; replies can be read aloud), suggested questions that change with each tab, a clear-chat button, `Esc` to close, milestone bubbles when you complete steps, an online/offline status badge and a **Deep Think** switch that shows the model's reasoning in a collapsible block. Buck can propose changes to your plan (set income, a category, add a goal, debt or special item) and nothing changes until you press **Apply**.
 - **Audio guide**: a voice tour of the page and a "Listen" button using your browser's built-in voices, with voice and speed controls.
 - **Themes**: light, dark or system.
 - **Demo mode**: loads sample data after saving a backup of yours, with a **Restore** button to bring your data back.
+- **Export and import**: download your plan as JSON and import it again, and export your ledger as CSV.
+- **Chart tooltips**: hover any chart to read exact values.
 - **Bilingual**: all screens, tips, chart labels, audio scripts and bot answers in English and Spanish (an automated test checks that both languages have the same entries).
 - **Private by design**: your data stays in your browser (`localStorage`). Nothing leaves your computer except requests to the local model server.
 
@@ -41,11 +45,12 @@ flowchart LR
   User["User in the browser"] --> UI["Static UI: HTML, CSS, JS"]
   UI --> Engine["Finance engine (engine.js): score, plan, goals, forecast"]
   UI --> Store[("localStorage: your data")]
-  UI -- "question + plan facts (SSE stream)" --> Server["Node server: /api/chat, /api/status"]
+  UI -- "question + plan facts (SSE stream)" --> Server["Node server: /api/chat, /api/status, /api/special"]
   Server --> KB["Retrieval over knowledge/en.md and es.md"]
   Server -- "prompt: context + facts" --> Llama["llama-server (llama.cpp)"]
   Llama --> Model[("Nemotron 3 Nano 4B GGUF")]
   Llama --> Server --> UI
+  Server --> Data[("Nemotron-Personas-El-Salvador sample (CSV)")]
 ```
 
 **Principle: the engine does the math, Nemotron explains.** All numbers (score, goal amounts, forecasts, payoff months) come from deterministic code in `public/js/engine.js`, which is covered by tests. The model never calculates: it receives your numbers as facts and explains them in plain language. This keeps advice consistent and avoids invented figures.
@@ -64,6 +69,7 @@ Other server behavior:
 - `GET /api/status` reports whether the model is online. Unless `LLAMA_URL` is set, it looks for `llama-server` at `127.0.0.1:8080`, then `127.0.0.1:9931`.
 - Requests are validated: bodies over 20 KB return `413`, invalid JSON returns `400`, and an empty message returns `400`.
 - The health score is hidden from the bot until you complete the quiz, so it never explains a score that is not real yet.
+- `POST /api/special` compares a survey profile with the personas dataset, and `POST /api/special-summary` asks the model to summarize the most and least similar profiles (it falls back to an automatic summary when Nemotron is offline).
 - Static files are served with `Cache-Control: no-store` so you always see the latest UI.
 
 ### Health score (0-100)
@@ -99,6 +105,16 @@ For each goal with `n` months left and a yearly return `r`, the monthly amount n
 
 Each month: income (grown by your income growth %) plus special income, minus expenses (your budget, inflated by your inflation %) and special expenses, accumulated from your current savings. Months where you enter real income or expenses in the ledger use your real values. The sinking fund shows the total of upcoming special expenses and the monthly amount to set aside.
 
+### Special % benchmark
+
+The **Special %** tab compares your survey profile with a sample of about 133,000 synthetic Salvadoran personas from [NVIDIA Nemotron-Personas-El-Salvador](https://huggingface.co/datasets/nvidia/Nemotron-Personas-El-Salvador) (sample in `data/`, loaded by `lib/special.js`).
+
+- You answer closed questions (sex, age, area, education level, household type, marital status, languages, department, municipality). At least 5 answers (age counts) are needed.
+- Similarity is a weighted average over those answers (age counts double, education 1.5, languages 0.5, the rest 1), with age similarity reaching 0 at 20 years apart. A persona **looks like you** at 75% similarity or more.
+- Results: how many personas look like you, your **Special %** (the share that are different from you), how many match every answer you gave, and the 5 most and 5 least similar profiles. Occupation and career goals are shown but are not part of the score.
+- The summaries of the most and least similar profiles are written by Nemotron when `llama-server` is online. The first calculation loads the dataset into memory (about 3 seconds and 300 MB in a Linux test), then later requests are fast.
+- The personas are synthetic and contain no real people. This tab is a community benchmark for exploration, not a prediction about you.
+
 ## Install and run
 
 ### Requirements
@@ -133,6 +149,7 @@ Open **http://localhost:3000**. When the badge in the chat reads "Nemotron · On
 |---|---|---|
 | `PORT` | `3000` | Web app port |
 | `LLAMA_URL` | auto-detect on ports 8080 and 9931 | Full URL of the model server, for example `http://127.0.0.1:8080/v1/chat/completions` |
+| `PERSONAS_CSV` | `data/nemotron_personas_sv_sample.csv` | Path to the personas dataset used by the Special % tab |
 
 ### Tests
 
@@ -140,7 +157,7 @@ Open **http://localhost:3000**. When the badge in the chat reads "Nemotron · On
 npm test
 ```
 
-Runs the finance engine tests (payoff, compound growth, goals, score, budget, forecast, multi-year), the server tests, the English/Spanish translation parity test and, if Chrome is installed, an end-to-end browser test (otherwise it is skipped; set `CHROME_BIN` to point at a browser).
+Runs the finance engine tests (payoff, compound growth, goals, score, budget, forecast, multi-year), the Special % tests, the server tests, the English/Spanish translation parity test and, if Chrome is installed, an end-to-end browser test (otherwise it is skipped; set `CHROME_BIN` to point at a browser).
 
 ## Project structure
 
@@ -148,14 +165,17 @@ Runs the finance engine tests (payoff, compound growth, goals, score, budget, fo
 moneymente/
 ├── README.md / README.es.md
 ├── LICENSE
-├── server.js                 # static server, /api/chat (retrieval + local Nemotron), /api/status
+├── server.js                 # static server, /api/chat (retrieval + local Nemotron), /api/status, /api/special
 ├── package.json
+├── lib/special.js            # Special %: survey profile vs. the personas dataset
+├── data/                     # Nemotron-Personas-El-Salvador sample (CSV) and its README
 ├── knowledge/                # the assistant's knowledge base
 │   ├── en.md
 │   └── es.md
 ├── public/
 │   ├── index.html
 │   ├── css/style.css         # light and dark themes
+│   ├── img/                  # El Salvador entrepreneurs heat map
 │   ├── i18n/{en,es}.json     # every text in both languages
 │   └── js/
 │       ├── engine.js         # pure finance logic (no DOM), unit tested
@@ -164,9 +184,11 @@ moneymente/
 │       └── chat.js           # Buck, streaming chat, Deep Think, plan actions, voice picker
 └── tests/
     ├── engine.test.js
+    ├── special.test.js
     ├── server.test.js
     ├── i18n.test.js
-    └── browser.test.js       # optional, needs Chrome
+    ├── browser.test.js       # optional, needs Chrome
+    └── fixtures/personas.csv # small dataset for the tests
 ```
 
 ## Customize
@@ -179,6 +201,8 @@ moneymente/
 
 - Educational estimates, not financial, tax or legal advice. Projections use fixed, assumed returns, growth and inflation.
 - A 4B model can still make mistakes. Answers are limited to the knowledge files and your plan, and the numbers shown in the app come from code, not from the model.
+- The personas dataset is a 95 MB file in the repository. Clone it on a good connection, and note that the app needs about 300 MB of extra memory the first time you use the Special % tab.
+- Voice input depends on the browser's speech recognition support (Chrome and Safari offer it; Firefox does not).
 - Your data lives in one browser's `localStorage`: clearing site data deletes it, and it does not sync between devices.
 - Browser voices depend on your operating system and browser.
 
@@ -192,3 +216,5 @@ moneymente/
 ## License and credits
 
 MIT, see [LICENSE](LICENSE). Built with [llama.cpp](https://github.com/ggml-org/llama.cpp) and NVIDIA Nemotron.
+
+The dataset in `data/` is a sample of [Nemotron-Personas-El-Salvador](https://huggingface.co/datasets/nvidia/Nemotron-Personas-El-Salvador) by NVIDIA (developed with WideLabs), licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Please keep this attribution if you reuse it.
